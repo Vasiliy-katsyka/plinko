@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Plinko Physics</title>
+    <!-- Telegram WebApp Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f0f23;
+            --board-bg: #1a1e3a;
+            --peg-color: #a3b8d9;
+            --chip-color: #00f5ff;
+            --text-color: #ffffff;
+            --shadow-color: rgba(0, 245, 255, 0.5);
+            --highlight-color: #00f5ff;
+            --button-primary: linear-gradient(45deg, #00c6ff, #9245ff);
+            --button-secondary: linear-gradient(45deg, #ff5f6d, #ffc371);
+            --nav-height: 70px; /* For padding calculation */
+
+            /* Monochromatic Slot Palette */
+            --slot-high: #8e44ad; /* Vibrant Purple */
+            --slot-mid-high: #6c4fbd;
+            --slot-mid: #5a57c4;
+            --slot-mid-low: #485fca;
+            --slot-low: #3d4a99;
+            --slot-zero: #2c336b; /* Dark, subtle */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        html {
+            height: 100%;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            min-height: 100%;
+            padding: 20px 10px;
+            padding-bottom: calc(var(--nav-height) + 20px); /* Avoid overlap with nav */
+            overflow-y: auto;
+        }
+
+        /* --- NEW: App Structure & View Management --- */
+        #app-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .view {
+            display: none; /* Hide views by default */
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            gap: 10px;
+        }
+
+        .view.active {
+            display: flex; /* Show active view */
+        }
+        
+        /* --- END: App Structure & View Management --- */
+
+        header {
+            width: 100%;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: clamp(1.8rem, 7vw, 2.5rem);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--chip-color);
+            text-shadow: 0 0 10px var(--shadow-color);
+            margin: 0;
+        }
+        
+        #plinko-board-container {
+            position: relative;
+            width: 100%;
+            flex-shrink: 0;
+        }
+        
+        #plinko-board {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background: linear-gradient(145deg, #2a3064, #1f244f);
+            border-radius: 15px 15px 0 0;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
+            border: 2px solid #3c448a;
+            border-bottom: none;
+        }
+
+        .peg {
+            width: 8px;
+            height: 8px;
+            background-color: var(--peg-color);
+            border-radius: 50%;
+            position: absolute;
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+        }
+
+        #chip {
+            position: absolute;
+            background-color: var(--chip-color);
+            border-radius: 50%;
+            box-shadow: 0 0 15px var(--shadow-color), 0 0 25px var(--shadow-color);
+            visibility: hidden;
+            transform: translate(-50%, -50%);
+        }
+
+        #slots-container {
+            display: flex;
+            width: 100%;
+        }
+
+        .slot {
+            flex-grow: 1;
+            height: 45px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 600;
+            font-size: clamp(0.6rem, 2.5vw, 0.8rem);
+            color: white;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border-bottom: 4px solid transparent;
+        }
+        
+        @keyframes highlight-win {
+            0% { transform: scale(1); box-shadow: none; }
+            50% { transform: scale(1.15); border-bottom-color: var(--highlight-color); box-shadow: 0 0 30px var(--highlight-color); filter: brightness(1.8); }
+            100% { transform: scale(1); box-shadow: none; }
+        }
+
+        .slot.highlight {
+            animation: highlight-win 0.6s ease-out;
+            z-index: 10;
+        }
+        
+        .panel {
+            background-color: var(--board-bg);
+            padding: 15px;
+            border-radius: 15px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        }
+
+        .control-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-color);
+            border: 2px solid #3c448a;
+            border-radius: 8px;
+            padding: 5px 15px;
+        }
+
+        .control-group label {
+            font-size: 0.9rem;
+            color: #a3b8d9;
+            font-weight: 600;
+        }
+
+        .control-group .value,
+        .control-group input {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-align: right;
+            width: 100px;
+        }
+
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+          -webkit-appearance: none; margin: 0; 
+        }
+        input[type=number] { -moz-appearance: textfield; }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .button-group button {
+            flex-grow: 1;
+        }
+
+        .risk-selector {
+            display: flex;
+            background-color: var(--bg-color);
+            border-radius: 8px;
+            border: 2px solid #3c448a;
+            overflow: hidden;
+        }
+
+        .risk-button {
+            flex-grow: 1;
+            padding: 10px;
+            border: none;
+            background: none;
+            color: #a3b8d9;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .risk-button.active {
+            background-color: var(--highlight-color);
+            color: var(--bg-color);
+            text-shadow: 0 0 5px var(--bg-color);
+        }
+
+        .main-button {
+            padding: 15px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+        
+        #drop-button {
+            background: var(--button-primary);
+        }
+
+        #auto-drop-button {
+            background: var(--button-secondary);
+        }
+
+        .main-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 245, 255, 0.4);
+        }
+
+        .main-button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* --- NEW: Bottom Navigation Menu --- */
+        #bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 500px;
+            height: var(--nav-height);
+            background-color: var(--board-bg);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+            border-top: 2px solid #3c448a;
+            z-index: 100;
+        }
+
+        .nav-button {
+            background: none;
+            border: none;
+            color: var(--peg-color);
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            opacity: 0.6;
+            transition: all 0.2s ease;
+        }
+
+        .nav-button.active {
+            color: var(--highlight-color);
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .nav-button svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+        
+        /* --- NEW: Referrals & Profile Page Styles --- */
+        .page-header {
+            font-size: 1.5rem;
+            color: var(--highlight-color);
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .info-text {
+            text-align: center;
+            color: var(--peg-color);
+            margin-bottom: 20px;
+        }
+
+        .referral-link-container {
+            display: flex;
+            background-color: var(--bg-color);
+            border: 2px solid var(--highlight-color);
+            border-radius: 8px;
+            padding: 10px;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        #referral-link {
+            flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .copy-button {
+            background: var(--button-primary);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        #profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid var(--highlight-color);
+            margin: 0 auto 15px auto;
+            display: block;
+            object-fit: cover;
+        }
+
+        #profile-name {
+            text-align: center;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        #profile-username {
+            text-align: center;
+            color: var(--peg-color);
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+
+        .ton-topup {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-top: 2px solid #3c448a;
+            padding-top: 20px;
+            margin-top: 20px;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        
+        <!-- === Main Game View === -->
+        <div id="main-game-view" class="view active">
+            <header>
+                <h1>Plinko Physics</h1>
+            </header>
+            <div id="plinko-board-container">
+                <div id="plinko-board"></div>
+                <div id="chip"></div>
+            </div>
+            <div id="slots-container"></div>
+            <div id="controls-panel" class="panel">
+                <div class="control-group">
+                    <label for="balance">Balance</label>
+                    <div id="balance" class="value">$2000.00</div>
+                </div>
+                 <div class="risk-selector">
+                    <button class="risk-button" data-risk="low">Low</button>
+                    <button class="risk-button active" data-risk="medium">Medium</button>
+                    <button class="risk-button" data-risk="high">High</button>
+                </div>
+                <div class="control-group">
+                    <label for="bet-amount">Bet Amount</label>
+                    <input type="number" id="bet-amount" value="10" min="1" step="1">
+                </div>
+                <div class="control-group">
+                    <label for="auto-drop-count">Auto Drops</label>
+                    <input type="number" id="auto-drop-count" value="10" min="1" max="100">
+                </div>
+                <div class="button-group">
+                    <button id="drop-button" class="main-button">Drop</button>
+                    <button id="auto-drop-button" class="main-button">Auto</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === Referrals View === -->
+        <div id="referrals-view" class="view">
+            <header><h1>Referrals</h1></header>
+            <div class="panel">
+                <p class="info-text">Invite friends and earn bonuses for every game they play!</p>
+                
+                <label for="referral-link" style="color: var(--peg-color); margin-bottom: 5px;">Your Invitation Link:</label>
+                <div class="referral-link-container">
+                    <span id="referral-link">t.me/plinko_bot?start=ref12345</span>
+                    <button class="copy-button" id="copy-link-btn">Copy</button>
+                </div>
+                
+                <button id="share-link-btn" class="main-button" style="background: var(--button-primary);">Share on Telegram</button>
+
+                <div style="border-top: 2px solid #3c448a; margin-top: 20px; padding-top: 10px;">
+                    <h3 style="text-align: center; color: var(--peg-color); margin-bottom: 10px;">Your Referrals (0)</h3>
+                    <p style="text-align: center; color: #777;">You haven't invited anyone yet.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- === Profile View === -->
+        <div id="profile-view" class="view">
+             <header><h1>Profile</h1></header>
+             <div class="panel">
+                <img id="profile-avatar" src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="User Avatar">
+                <h2 id="profile-name">Mock User</h2>
+                <p id="profile-username">@mock_username</p>
+
+                <div class="control-group">
+                    <label>Balance</label>
+                    <div id="profile-balance" class="value">$2000.00</div>
+                </div>
+
+                <div class="ton-topup">
+                    <h3 class="page-header" style="font-size: 1.2rem; margin: 0;">Top Up with TON</h3>
+                    <div class="control-group">
+                        <label for="topup-amount">Amount (TON)</label>
+                        <input type="number" id="topup-amount" value="10" min="1">
+                    </div>
+                     <button id="topup-btn" class="main-button" style="background: var(--button-primary); font-size: 1.2rem; padding: 12px;">Pay with TON</button>
+                </div>
+             </div>
+        </div>
+
+    </div>
+
+    <!-- === Bottom Navigation Menu === -->
+    <nav id="bottom-nav">
+        <button class="nav-button" data-view="referrals-view">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            <span>Referrals</span>
+        </button>
+        <button class="nav-button active" data-view="main-game-view">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-12h2v2h-2zm0 4h2v6h-2z"/></svg>
+            <span>Game</span>
+        </button>
+        <button class="nav-button" data-view="profile-view">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <span>Profile</span>
+        </button>
+    </nav>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Telegram Web App Setup ---
+            const tg = window.Telegram.WebApp;
+            tg.ready(); // Let Telegram know the app is ready
+            tg.expand(); // Expand the web app to full height
+
+            // --- Plinko Game Selectors ---
+            const board = document.getElementById('plinko-board');
+            const chipElement = document.getElementById('chip');
+            const slotsContainer = document.getElementById('slots-container');
+            const dropButton = document.getElementById('drop-button');
+            const autoDropButton = document.getElementById('auto-drop-button');
+            const balanceElement = document.getElementById('balance');
+            const profileBalanceElement = document.getElementById('profile-balance');
+            const betAmountInput = document.getElementById('bet-amount');
+            const riskButtons = document.querySelectorAll('.risk-button');
+            const autoDropCountInput = document.getElementById('auto-drop-count');
+
+            // --- New UI Selectors ---
+            const navButtons = document.querySelectorAll('.nav-button');
+            const views = document.querySelectorAll('.view');
+            const copyLinkBtn = document.getElementById('copy-link-btn');
+            const shareLinkBtn = document.getElementById('share-link-btn');
+            const referralLinkElement = document.getElementById('referral-link');
+
+            // --- Plinko Game State ---
+            let BOARD_WIDTH = board.clientWidth;
+            let BOARD_HEIGHT = board.clientHeight;
+            
+            const riskLevelConfigs = {
+                low: {
+                    rows: 8,
+                    cols: 10,
+                    multipliers: [4, 2, 1.2, 0.7, 0.5, 0.5, 0.7, 1.2, 2, 4]
+                },
+                medium: {
+                    rows: 12,
+                    cols: 14,
+                    multipliers: [10, 5, 2.5, 1, 0.5, 0, 0, 0.5, 1, 2.5, 5, 10]
+                },
+                high: {
+                    rows: 16,
+                    cols: 18,
+                    multipliers: [100, 15, 5, 2, 0.5, 0.2, 0, 0, 0, 0.2, 0.5, 2, 5, 15, 100]
+                }
+            };
+            
+            let PEG_RADIUS = BOARD_WIDTH / 150;
+            let CHIP_RADIUS = BOARD_WIDTH / 45;
+            const GRAVITY = 0.25;
+            const DAMPING = 0.55;
+            
+            let balance = 2000.00;
+            let currentRisk = 'medium';
+            let isDropping = false;
+            let isAutoDropping = false;
+            let autoDropsRemaining = 0;
+            let pegs = [];
+
+            let chip = { x: 0, y: 0, vx: 0, vy: 0 };
+
+            // --- NEW: Profile Initialization ---
+            function initProfile() {
+                const profileAvatar = document.getElementById('profile-avatar');
+                const profileName = document.getElementById('profile-name');
+                const profileUsername = document.getElementById('profile-username');
+
+                const user = tg.initDataUnsafe?.user;
+
+                if (user && user.id) {
+                    // Running in Telegram, use real data
+                    profileName.textContent = [user.first_name, user.last_name].filter(Boolean).join(' ');
+                    profileUsername.textContent = user.username ? `@${user.username}` : 'No username';
+                    referralLinkElement.textContent = `t.me/your_bot_name?start=ref${user.id}`;
+                    // Note: You cannot directly get a user's profile photo URL. 
+                    // This would typically be handled by your backend. For now, we'll use a placeholder.
+                    // A common practice is to generate an avatar based on user ID or initials.
+                    profileAvatar.src = `https://i.pravatar.cc/150?u=${user.id}`;
+                } else {
+                    // Not in Telegram, use mock data (already in HTML)
+                    console.log("Not running in Telegram or user data not available. Using mock data.");
+                }
+            }
+
+            // --- NEW: View Switching Logic ---
+            function switchView(viewId) {
+                views.forEach(view => {
+                    view.classList.toggle('active', view.id === viewId);
+                });
+                navButtons.forEach(button => {
+                    button.classList.toggle('active', button.dataset.view === viewId);
+                });
+                
+                // When switching to the game view, ensure the board is correctly sized.
+                if (viewId === 'main-game-view') {
+                    setTimeout(() => setupBoard(currentRisk), 0);
+                }
+            }
+
+            navButtons.forEach(button => {
+                button.addEventListener('click', () => switchView(button.dataset.view));
+            });
+
+            // --- NEW: Referral Page Logic ---
+            copyLinkBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(referralLinkElement.textContent)
+                    .then(() => {
+                        copyLinkBtn.textContent = 'Copied!';
+                        setTimeout(() => { copyLinkBtn.textContent = 'Copy'; }, 2000);
+                    })
+                    .catch(err => console.error('Failed to copy text: ', err));
+            });
+            
+            shareLinkBtn.addEventListener('click', () => {
+                const text = `Join me in Plinko Physics and let's win together!`;
+                const url = referralLinkElement.textContent;
+                tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
+            });
+
+
+            // === Plinko Game Functions (mostly unchanged) ===
+
+            function getSlotColor(multiplier) {
+                if (multiplier >= 10) return 'var(--slot-high)';
+                if (multiplier >= 5) return 'var(--slot-mid-high)';
+                if (multiplier >= 1) return 'var(--slot-mid)';
+                if (multiplier > 0) return 'var(--slot-low)';
+                return 'var(--slot-zero)';
+            }
+            
+            function setupBoard(risk) {
+                if (isDropping) return;
+                currentRisk = risk;
+                
+                BOARD_WIDTH = board.clientWidth;
+                if (BOARD_WIDTH === 0) return; // Don't setup if view is hidden
+                BOARD_HEIGHT = board.clientHeight;
+                PEG_RADIUS = BOARD_WIDTH / 150;
+                CHIP_RADIUS = BOARD_WIDTH / 45;
+
+                const config = riskLevelConfigs[risk];
+                pegs = [];
+                board.innerHTML = '';
+                slotsContainer.innerHTML = '';
+                
+                chipElement.style.width = `${CHIP_RADIUS * 2}px`;
+                chipElement.style.height = `${CHIP_RADIUS * 2}px`;
+
+                const horizontalSpacing = BOARD_WIDTH / config.cols;
+                const verticalSpacing = BOARD_HEIGHT / (config.rows + 1);
+
+                for (let r = 0; r < config.rows; r++) {
+                    const numPegs = r % 2 === 0 ? config.cols - 1 : config.cols;
+                    const xOffset = r % 2 === 0 ? horizontalSpacing : horizontalSpacing / 2;
+                    
+                    for (let c = 0; c < numPegs; c++) {
+                        const x = xOffset + c * horizontalSpacing;
+                        const y = verticalSpacing + r * verticalSpacing;
+                        pegs.push({ x, y });
+
+                        const pegEl = document.createElement('div');
+                        pegEl.className = 'peg';
+                        pegEl.style.width = `${PEG_RADIUS * 2}px`;
+                        pegEl.style.height = `${PEG_RADIUS * 2}px`;
+                        pegEl.style.left = `${x}px`;
+                        pegEl.style.top = `${y}px`;
+                        board.appendChild(pegEl);
+                    }
+                }
+                
+                config.multipliers.forEach(m => {
+                    const slot = document.createElement('div');
+                    slot.className = 'slot';
+                    slot.dataset.multiplier = m;
+                    slot.textContent = `${m}x`;
+                    slot.style.backgroundColor = getSlotColor(m);
+                    slotsContainer.appendChild(slot);
+                });
+
+                riskButtons.forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.risk === risk);
+                });
+            }
+            
+            function updateBalanceUI() {
+                const formattedBalance = `$${balance.toFixed(2)}`;
+                balanceElement.textContent = formattedBalance;
+                profileBalanceElement.textContent = formattedBalance;
+                betAmountInput.max = balance;
+            }
+
+            function handleBetChange() {
+                let bet = parseFloat(betAmountInput.value);
+                if (isNaN(bet) || bet < 1) bet = 1;
+                if (bet > balance) bet = balance;
+                betAmountInput.value = Math.floor(bet);
+            }
+            
+            function setControlsDisabled(disabled) {
+                dropButton.disabled = disabled;
+                autoDropButton.disabled = disabled;
+                betAmountInput.disabled = disabled;
+                riskButtons.forEach(btn => btn.disabled = disabled);
+            }
+
+            function dropChip() {
+                if (isDropping) return;
+
+                const betAmount = parseFloat(betAmountInput.value);
+                if (betAmount > balance) {
+                    alert("Not enough balance for this bet!");
+                    stopAutoDrop();
+                    return;
+                }
+                
+                isDropping = true;
+                setControlsDisabled(true);
+
+                balance -= betAmount;
+                updateBalanceUI();
+                
+                const maxBetForScaling = 250; 
+                const luckFactor = Math.min(betAmount / maxBetForScaling, 1.0);
+                const baseVelocityRange = 1.5;
+                const extraVelocityRange = 2.0;
+                const velocityRange = baseVelocityRange + (luckFactor * extraVelocityRange);
+
+                chip.x = BOARD_WIDTH / 2;
+                chip.y = CHIP_RADIUS * 2;
+                chip.vx = (Math.random() - 0.5) * velocityRange;
+                chip.vy = 0;
+
+                chipElement.style.left = `${chip.x}px`;
+                chipElement.style.top = `${chip.y}px`;
+                chipElement.style.visibility = 'visible';
+                
+                document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
+
+                requestAnimationFrame(updatePhysics);
+            }
+            
+            function startAutoDrop() {
+                if (isAutoDropping) {
+                    stopAutoDrop();
+                } else {
+                    isAutoDropping = true;
+                    autoDropsRemaining = parseInt(autoDropCountInput.value, 10);
+                    autoDropButton.textContent = 'Stop';
+                    dropChip();
+                }
+            }
+            
+            function stopAutoDrop() {
+                isAutoDropping = false;
+                autoDropsRemaining = 0;
+                autoDropButton.textContent = 'Auto';
+                if(!isDropping) setControlsDisabled(false);
+            }
+
+            function updatePhysics() {
+                if (!isDropping) return;
+
+                chip.vy += GRAVITY;
+                chip.x += chip.vx;
+                chip.y += chip.vy;
+
+                if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
+                    chip.vx *= -DAMPING;
+                    chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
+                }
+
+                for (const peg of pegs) {
+                    const dx = chip.x - peg.x;
+                    const dy = chip.y - peg.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < CHIP_RADIUS + PEG_RADIUS) {
+                        const angle = Math.atan2(dy, dx);
+                        const overlap = (CHIP_RADIUS + PEG_RADIUS) - distance;
+                        
+                        chip.x += Math.cos(angle) * overlap;
+                        chip.y += Math.sin(angle) * overlap;
+
+                        const normalX = dx / distance;
+                        const normalY = dy / distance;
+                        const dotProduct = chip.vx * normalX + chip.vy * normalY;
+
+                        chip.vx = (chip.vx - 2 * dotProduct * normalX) * DAMPING;
+                        chip.vy = (chip.vy - 2 * dotProduct * normalY) * DAMPING;
+                        chip.vx += (Math.random() - 0.5) * 0.5;
+                    }
+                }
+
+                chipElement.style.left = `${chip.x}px`;
+                chipElement.style.top = `${chip.y}px`;
+
+                if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
+                    endDrop();
+                } else {
+                    requestAnimationFrame(updatePhysics);
+                }
+            }
+
+            function endDrop() {
+                isDropping = false;
+                chipElement.style.visibility = 'hidden';
+
+                const betAmount = parseFloat(betAmountInput.value);
+                const currentMultipliers = riskLevelConfigs[currentRisk].multipliers;
+                const slotWidth = BOARD_WIDTH / currentMultipliers.length;
+                let landingSlotIndex = Math.floor(chip.x / slotWidth);
+                landingSlotIndex = Math.max(0, Math.min(currentMultipliers.length - 1, landingSlotIndex));
+                
+                const multiplier = currentMultipliers[landingSlotIndex];
+                const winnings = betAmount * multiplier;
+                balance += winnings;
+
+                const slotElements = document.querySelectorAll('.slot');
+                slotElements[landingSlotIndex].classList.add('highlight');
+
+                setTimeout(() => {
+                    updateBalanceUI();
+                    handleBetChange();
+                    
+                    if (isAutoDropping && autoDropsRemaining > 1) {
+                        autoDropsRemaining--;
+                        autoDropCountInput.value = autoDropsRemaining;
+                        dropChip();
+                    } else {
+                        stopAutoDrop();
+                    }
+
+                }, isAutoDropping ? 100 : 500);
+            }
+
+            // --- Event Listeners ---
+            riskButtons.forEach(button => {
+                button.addEventListener('click', () => setupBoard(button.dataset.risk));
+            });
+            
+            dropButton.addEventListener('click', dropChip);
+            autoDropButton.addEventListener('click', startAutoDrop);
+            betAmountInput.addEventListener('change', handleBetChange);
+            
+            window.addEventListener('resize', () => setupBoard(currentRisk));
+            
+            // --- Initial Setup ---
+            initProfile();
+            setupBoard(currentRisk);
+            updateBalanceUI();
+        });
+    </script>
+</body>
+</html>
