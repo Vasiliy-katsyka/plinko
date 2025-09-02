@@ -50,7 +50,7 @@
             display: flex;
             justify-content: center;
             min-height: 100%;
-            padding: 50px 15px calc(var(--nav-height) + 30px); /* Increased top padding to 50px */
+            padding: 50px 15px calc(var(--nav-height) + 30px);
             overflow-y: auto;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -256,7 +256,6 @@
                         return;
                     }
 
-                    // Create a lighter shade of a color for gradients
                     const lightenColor = (hex, percent) => {
                         hex = hex.replace(/^\s*#|\s*$/g, '');
                         if(hex.length == 3) hex = hex.replace(/(.)/g, '$1$1');
@@ -282,7 +281,6 @@
                             --button-primary-text-color: ${theme.button_text_color} !important;
                             --stepper-bg: ${theme.bg_color} !important;
                             
-                            /* Link game accents to TG theme for full integration */
                             --highlight-primary: ${theme.button_color} !important;
                             --button-secondary-bg: linear-gradient(45deg, ${lightenColor(theme.secondary_bg_color, 40)}, ${lightenColor(theme.secondary_bg_color, 20)}) !important;
                         }
@@ -294,8 +292,16 @@
             
             try { 
                 tg.ready(); 
-                // This is the correct Telegram function to expand the web app to fullscreen.
+                
+                // Стандартный метод для расширения окна на всю высоту
                 tg.expand();
+
+                // Добавляем вызов новой функции requestFullScreen, как вы просили,
+                // с проверкой на случай, если она доступна не во всех версиях Telegram.
+                if (tg.requestFullScreen && typeof tg.requestFullScreen === 'function') {
+                    tg.requestFullScreen();
+                }
+
                 applyTelegramTheme(); 
             } catch (e) { 
                 console.error("Telegram WebApp script not found or failed.", e); 
@@ -337,18 +343,6 @@
                     profileName.textContent = name;
                     profileUsername.textContent = user.username ? `@${user.username}` : `ID: ${user.id}`;
                     allSelectors.referralLinkElement.textContent = `t.me/your_bot_name?start=ref${user.id}`;
-                    
-                    // --- REAL TELEGRAM AVATAR LOGIC ---
-                    // To get the real avatar, you need a backend. The process is:
-                    // 1. Send the user.id from here to your server.
-                    // 2. Your server uses the bot token to call the Telegram API method `getUserProfilePhotos` with the user_id.
-                    // 3. Get the `file_id` of the first photo.
-                    // 4. Use the bot token to call `getFile` with the `file_id` to get a `file_path`.
-                    // 5. Construct the full URL: `https://api.telegram.org/file/bot<YOUR_TOKEN>/${file_path}`
-                    // 6. Send this URL back to the Web App.
-                    // 7. Uncomment and use the line below:
-                    // allSelectors.profileAvatar.src = 'URL_FROM_YOUR_BACKEND';
-                    
                 } else {
                     profileName.textContent = "Тестовый Пользователь";
                     profileUsername.textContent = "@test_user";
