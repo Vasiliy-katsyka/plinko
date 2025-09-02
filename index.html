@@ -15,7 +15,7 @@
 
     <style>
         :root {
-            /* Fallback colors for when outside Telegram */
+            /* Fallback colors */
             --bg-color: #0d0f1a;
             --surface-color: #1a1e3a;
             --surface-color-2: #252a4a;
@@ -24,20 +24,16 @@
             --text-muted: #8a99b5;
             --button-primary-bg: linear-gradient(45deg, #a855f7, #6d28d9);
             --button-primary-text-color: #ffffff;
-            
-            /* Custom game colors - these will be overridden by Telegram Theme */
             --peg-color: #a3b8d9;
             --chip-color: #00f5ff;
             --highlight-primary: #a855f7;
             --highlight-secondary: #00f5ff;
             --button-secondary-bg: linear-gradient(45deg, #ec4899, #d946ef);
             --stepper-bg: #2c336b;
-
             --slot-high: #8e44ad;
             --slot-mid: #5a57c4;
             --slot-low: #3d4a99;
             --slot-zero: #2c336b;
-
             --nav-height: 70px;
         }
 
@@ -50,7 +46,7 @@
             display: flex;
             justify-content: center;
             min-height: 100%;
-            padding: 50px 15px calc(var(--nav-height) + 30px);
+            padding: 90px 15px calc(var(--nav-height) + 30px); /* Increased top padding to 90px */
             overflow-y: auto;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -65,6 +61,10 @@
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             text-shadow: 0 0 20px rgba(168, 85, 247, 0.3); margin: 0;
         }
+        
+        /* Wrapper for board and slots to remove gap between them */
+        .game-board-area { width: 100%; }
+        
         #plinko-board-container { position: relative; width: 100%; flex-shrink: 0; }
         #plinko-board {
             width: 100%; aspect-ratio: 1 / 1;
@@ -117,16 +117,17 @@
         .stepper-input-group input::-webkit-inner-spin-button, .stepper-input-group input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .stepper-button { background: var(--stepper-bg); border: none; color: var(--text-color); width: 28px; height: 28px; border-radius: 8px; font-size: 1.2rem; line-height: 1; cursor: pointer; transition: background 0.2s; margin: 0 4px; }
         .stepper-button:hover { background-color: rgba(255,255,255,0.1); }
-        #drop-button { grid-column: 2 / 3; grid-row: 1 / 3; }
+        #drop-button { grid-column: 2 / 3; grid-row: 1 / 3; font-size: 1.1rem; } /* Reduced font size */
         #auto-drop-controls { grid-column: 1 / 2; grid-row: 2 / 3; }
         .risk-selector { padding: 3px; height: 48px; }
         .risk-button { flex-grow: 1; padding: 8px 5px; border: none; background: none; border-radius: 9px; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.3s ease; }
         .risk-button.active { background-color: var(--highlight-primary); color: white; }
         
         .main-button {
-            padding: 12px; font-size: 1.2rem; font-weight: 700; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color);
+            padding: 15px 12px; /* Set consistent padding */
+            font-weight: 700; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color);
             text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.2s ease;
-            display: flex; justify-content: center; align-items: center; height: 100%; background: var(--button-primary-bg);
+            display: flex; justify-content: center; align-items: center; background: var(--button-primary-bg);
         }
         #auto-drop-button { background: var(--button-secondary-bg); flex-shrink: 0; padding: 0 15px; font-size: 0.9rem; margin-left: auto; height: 36px; border-radius: 8px; }
         
@@ -155,10 +156,12 @@
     <div id="app-container">
         
         <div id="main-game-view" class="view active">
-            <div id="plinko-board-container">
-                <div id="plinko-board"></div>
+            <div class="game-board-area">
+                <div id="plinko-board-container">
+                    <div id="plinko-board"></div>
+                </div>
+                <div id="slots-container"></div>
             </div>
-            <div id="slots-container"></div>
             <div class="panel">
                 <div class="balance-display"> <label>Баланс</label> <div id="balance" class="value">$2000.00</div> </div>
                 <div class="controls-grid">
@@ -212,8 +215,8 @@
                 <div class="top-up-section" style="margin-top: 5px;">
                     <h3 style="text-align:center; margin-bottom:15px; font-size:1.1rem; color:var(--text-muted);">Пополнить баланс</h3>
                     <div class="button-group" style="display:flex; gap:10px;">
-                        <button id="topup-gifts-btn" class="main-button" style="background: var(--button-secondary-bg); flex:1;">🎁 Подарками</button>
-                        <button id="topup-ton-btn" class="main-button" style="flex:1;">💎 TON</button>
+                        <button id="topup-gifts-btn" class="main-button" style="background: var(--button-secondary-bg); flex:1; font-size: 1.1rem;">🎁 Подарками</button>
+                        <button id="topup-ton-btn" class="main-button" style="flex:1; font-size: 1.1rem;">💎 TON</button>
                     </div>
                 </div>
 
@@ -223,7 +226,7 @@
                         <span id="referral-link">t.me/your_bot_name?start=ref12345</span>
                         <button class="copy-button" id="copy-link-btn">Копировать</button>
                     </div>
-                    <button id="share-link-btn" class="main-button" style="width:100%;">Поделиться</button>
+                    <button id="share-link-btn" class="main-button" style="width:100%; font-size: 1.1rem;">Поделиться</button>
                 </div>
              </div>
         </div>
@@ -251,38 +254,22 @@
             function applyTelegramTheme() {
                 try {
                     const theme = tg.themeParams;
-                    if (!theme || !theme.bg_color) {
-                        console.warn("Telegram theme not available. Using fallback.");
-                        return;
-                    }
-
+                    if (!theme || !theme.bg_color) { console.warn("Telegram theme not available."); return; }
                     const lightenColor = (hex, percent) => {
                         hex = hex.replace(/^\s*#|\s*$/g, '');
                         if(hex.length == 3) hex = hex.replace(/(.)/g, '$1$1');
                         let r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
                         const p = percent / 100;
-                        r = Math.min(255, Math.floor(r * (1 + p)));
-                        g = Math.min(255, Math.floor(g * (1 + p)));
-                        b = Math.min(255, Math.floor(b * (1 + p)));
+                        r = Math.min(255, Math.floor(r * (1 + p))); g = Math.min(255, Math.floor(g * (1 + p))); b = Math.min(255, Math.floor(b * (1 + p)));
                         return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
                     };
-
                     const buttonColor = theme.button_color || '#a855f7';
                     const lighterButtonColor = lightenColor(buttonColor, 30);
-                    
                     const styles = `
                         :root {
-                            --bg-color: ${theme.bg_color} !important;
-                            --surface-color: ${theme.secondary_bg_color} !important;
-                            --text-color: ${theme.text_color} !important;
-                            --text-muted: ${theme.hint_color} !important;
-                            --border-color: ${theme.hint_color}33 !important;
-                            --button-primary-bg: linear-gradient(45deg, ${lighterButtonColor}, ${buttonColor}) !important;
-                            --button-primary-text-color: ${theme.button_text_color} !important;
-                            --stepper-bg: ${theme.bg_color} !important;
-                            
-                            --highlight-primary: ${theme.button_color} !important;
-                            --button-secondary-bg: linear-gradient(45deg, ${lightenColor(theme.secondary_bg_color, 40)}, ${lightenColor(theme.secondary_bg_color, 20)}) !important;
+                            --bg-color: ${theme.bg_color} !important; --surface-color: ${theme.secondary_bg_color} !important; --text-color: ${theme.text_color} !important; --text-muted: ${theme.hint_color} !important;
+                            --border-color: ${theme.hint_color}33 !important; --button-primary-bg: linear-gradient(45deg, ${lighterButtonColor}, ${buttonColor}) !important; --button-primary-text-color: ${theme.button_text_color} !important;
+                            --stepper-bg: ${theme.bg_color} !important; --highlight-primary: ${theme.button_color} !important; --button-secondary-bg: linear-gradient(45deg, ${lightenColor(theme.secondary_bg_color, 40)}, ${lightenColor(theme.secondary_bg_color, 20)}) !important;
                         }
                         #bottom-nav { background-color: ${theme.secondary_bg_color}cc !important; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
                     `;
@@ -291,35 +278,20 @@
             }
             
             try { 
-                tg.ready(); 
-                
-                // Стандартный метод для расширения окна на всю высоту
-                tg.expand();
-
-                // Добавляем вызов новой функции requestFullScreen, как вы просили,
-                // с проверкой на случай, если она доступна не во всех версиях Telegram.
-                tg.requestFullscreen();
-
+                tg.ready(); tg.expand();
+                if (tg.requestFullScreen && typeof tg.requestFullScreen === 'function') { tg.requestFullScreen(); }
                 applyTelegramTheme(); 
-            } catch (e) { 
-                console.error("Telegram WebApp script not found or failed.", e); 
-            }
+            } catch (e) { console.error("Telegram WebApp script not found or failed.", e); }
 
-            // --- Selectors ---
             const allSelectors = {
-                board: document.getElementById('plinko-board'), slotsContainer: document.getElementById('slots-container'),
-                dropButton: document.getElementById('drop-button'), autoDropButton: document.getElementById('auto-drop-button'), balanceElement: document.getElementById('balance'),
-                profileBalanceElement: document.getElementById('profile-balance'), betAmountInput: document.getElementById('bet-amount'),
-                riskButtons: document.querySelectorAll('.risk-button'), autoDropCountInput: document.getElementById('auto-drop-count'),
-                navButtons: document.querySelectorAll('.nav-button'), views: document.querySelectorAll('.view'), copyLinkBtn: document.getElementById('copy-link-btn'),
-                shareLinkBtn: document.getElementById('share-link-btn'), referralLinkElement: document.getElementById('referral-link'),
-                claimFreeDropBtn: document.getElementById('claim-free-drop-btn'), timerElement: document.getElementById('timer'),
-                stepperButtons: document.querySelectorAll('.stepper-button'), profileAvatar: document.getElementById('profile-avatar'),
+                board: document.getElementById('plinko-board'), slotsContainer: document.getElementById('slots-container'), dropButton: document.getElementById('drop-button'), autoDropButton: document.getElementById('auto-drop-button'),
+                balanceElement: document.getElementById('balance'), profileBalanceElement: document.getElementById('profile-balance'), betAmountInput: document.getElementById('bet-amount'), riskButtons: document.querySelectorAll('.risk-button'),
+                autoDropCountInput: document.getElementById('auto-drop-count'), navButtons: document.querySelectorAll('.nav-button'), views: document.querySelectorAll('.view'), copyLinkBtn: document.getElementById('copy-link-btn'),
+                shareLinkBtn: document.getElementById('share-link-btn'), referralLinkElement: document.getElementById('referral-link'), claimFreeDropBtn: document.getElementById('claim-free-drop-btn'),
+                timerElement: document.getElementById('timer'), stepperButtons: document.querySelectorAll('.stepper-button'), profileAvatar: document.getElementById('profile-avatar'),
             };
             
-            // --- State ---
             let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
-            // RTP ~90-95% Multipliers for better chances
             const riskLevelConfigs = {
                 low:    { rows: 8,  cols: 10, multipliers: [5, 2, 1.5, 1.1, 0.8, 0.8, 1.1, 1.5, 2, 5] },
                 medium: { rows: 12, cols: 14, multipliers: [20, 5, 2, 1, 0.5, 0.4, 0.4, 0.5, 1, 2, 5, 20] },
@@ -335,15 +307,12 @@
                 const profileName = document.getElementById('profile-name'), profileUsername = document.getElementById('profile-username');
                 let user = null;
                 try { user = tg.initDataUnsafe?.user; } catch (e) { /* ignore */ }
-                
                 if (user && user.id) {
                     const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
-                    profileName.textContent = name;
-                    profileUsername.textContent = user.username ? `@${user.username}` : `ID: ${user.id}`;
+                    profileName.textContent = name; profileUsername.textContent = user.username ? `@${user.username}` : `ID: ${user.id}`;
                     allSelectors.referralLinkElement.textContent = `t.me/your_bot_name?start=ref${user.id}`;
                 } else {
-                    profileName.textContent = "Тестовый Пользователь";
-                    profileUsername.textContent = "@test_user";
+                    profileName.textContent = "Тестовый Пользователь"; profileUsername.textContent = "@test_user";
                 }
             }
             
@@ -355,91 +324,49 @@
                 else if (viewId === 'free-try-view') { initFreeTryView(); }
             }
             allSelectors.navButtons.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
-
-            allSelectors.copyLinkBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(allSelectors.referralLinkElement.textContent).then(() => {
-                    allSelectors.copyLinkBtn.textContent = 'Скопировано!'; setTimeout(() => { allSelectors.copyLinkBtn.textContent = 'Копировать'; }, 2000);
-                });
-            });
-            allSelectors.shareLinkBtn.addEventListener('click', () => {
-                const text = `Присоединяйся ко мне в Плинко и давай выигрывать вместе!`; const url = allSelectors.referralLinkElement.textContent;
-                try { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`); } 
-                catch(e) { alert("Функция 'Поделиться' работает только в Telegram."); }
-            });
-
+            allSelectors.copyLinkBtn.addEventListener('click', () => { navigator.clipboard.writeText(allSelectors.referralLinkElement.textContent).then(() => { allSelectors.copyLinkBtn.textContent = 'Скопировано!'; setTimeout(() => { allSelectors.copyLinkBtn.textContent = 'Копировать'; }, 2000); }); });
+            allSelectors.shareLinkBtn.addEventListener('click', () => { const text = `Присоединяйся!`, url = allSelectors.referralLinkElement.textContent; try { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`); } catch(e) { alert("Функция 'Поделиться' работает только в Telegram."); } });
             function updateFreeDropTimer() {
                 const lastClaim = localStorage.getItem('lastFreeDropClaim'), nextAvailableTime = parseInt(lastClaim) + FREE_DROP_INTERVAL, now = Date.now(), timeLeft = nextAvailableTime - now;
-                if (!lastClaim || timeLeft <= 0) {
-                    allSelectors.timerElement.textContent = "Готово!"; allSelectors.claimFreeDropBtn.disabled = false;
-                    if(freeDropTimerInterval) clearInterval(freeDropTimerInterval);
-                } else {
+                if (!lastClaim || timeLeft <= 0) { allSelectors.timerElement.textContent = "Готово!"; allSelectors.claimFreeDropBtn.disabled = false; if(freeDropTimerInterval) clearInterval(freeDropTimerInterval); } 
+                else {
                     allSelectors.claimFreeDropBtn.disabled = true;
                     const h = Math.floor(timeLeft / 3600000), m = Math.floor((timeLeft % 3600000) / 60000), s = Math.floor((timeLeft % 60000) / 1000);
                     allSelectors.timerElement.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
                 }
             }
             function initFreeTryView() { updateFreeDropTimer(); if(freeDropTimerInterval) clearInterval(freeDropTimerInterval); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
-            function handleClaimFreeDrop() {
-                if (isDropping) return;
-                localStorage.setItem('lastFreeDropClaim', Date.now().toString()); initFreeTryView(); switchView('main-game-view');
-                setTimeout(() => { setupBoard('low'); setTimeout(() => performDrop(0, FREE_DROP_BASE_BET), 50); }, 100);
-            }
+            function handleClaimFreeDrop() { if (isDropping) return; localStorage.setItem('lastFreeDropClaim', Date.now().toString()); initFreeTryView(); switchView('main-game-view'); setTimeout(() => { setupBoard('low'); setTimeout(() => performDrop(0, FREE_DROP_BASE_BET), 50); }, 100); }
             allSelectors.claimFreeDropBtn.addEventListener('click', handleClaimFreeDrop);
             
-            function getSlotColor(m) {
-                if (m >= 20) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)'; if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)';
-            }
+            function getSlotColor(m) { if (m >= 20) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)'; if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)'; }
             function setupBoard(risk) {
                 if (isDropping) return; currentRisk = risk; BOARD_WIDTH = allSelectors.board.clientWidth; if (BOARD_WIDTH === 0) return;
                 BOARD_HEIGHT = allSelectors.board.clientHeight; PEG_RADIUS = BOARD_WIDTH / 150;
-                if (risk === 'high') { CHIP_RADIUS = BOARD_WIDTH / 55; GRAVITY = 0.30; }
-                else { CHIP_RADIUS = BOARD_WIDTH / 45; GRAVITY = 0.25; }
-
+                if (risk === 'high') { CHIP_RADIUS = BOARD_WIDTH / 55; GRAVITY = 0.30; } else { CHIP_RADIUS = BOARD_WIDTH / 45; GRAVITY = 0.25; }
                 const config = riskLevelConfigs[risk]; pegs = []; allSelectors.board.innerHTML = ''; allSelectors.slotsContainer.innerHTML = '';
                 const hSpacing = BOARD_WIDTH / config.cols, vSpacing = BOARD_HEIGHT / (config.rows + 1);
                 for (let r = 0; r < config.rows; r++) {
                     const numPegs = r % 2 === 0 ? config.cols - 1 : config.cols; const xOffset = r % 2 === 0 ? hSpacing : hSpacing / 2;
                     for (let c = 0; c < numPegs; c++) {
                         const x = xOffset + c * hSpacing, y = vSpacing + r * vSpacing; pegs.push({ x, y });
-                        const pegEl = document.createElement('div'); pegEl.className = 'peg';
-                        pegEl.style.cssText = `width:${PEG_RADIUS * 2}px;height:${PEG_RADIUS * 2}px;left:${x}px;top:${y}px;`;
-                        allSelectors.board.appendChild(pegEl);
+                        const pegEl = document.createElement('div'); pegEl.className = 'peg'; pegEl.style.cssText = `width:${PEG_RADIUS * 2}px;height:${PEG_RADIUS * 2}px;left:${x}px;top:${y}px;`; allSelectors.board.appendChild(pegEl);
                     }
                 }
-                config.multipliers.forEach(m => {
-                    const slot = document.createElement('div'); slot.className = 'slot'; slot.dataset.multiplier = m; slot.textContent = `${m}x`;
-                    slot.style.backgroundColor = getSlotColor(m); allSelectors.slotsContainer.appendChild(slot);
-                });
+                config.multipliers.forEach(m => { const slot = document.createElement('div'); slot.className = 'slot'; slot.dataset.multiplier = m; slot.textContent = `${m}x`; slot.style.backgroundColor = getSlotColor(m); allSelectors.slotsContainer.appendChild(slot); });
                 allSelectors.riskButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.risk === risk));
             }
-            function updateBalanceUI() {
-                const formattedBalance = `$${balance.toFixed(2)}`;
-                allSelectors.balanceElement.textContent = formattedBalance; allSelectors.profileBalanceElement.textContent = formattedBalance; allSelectors.betAmountInput.max = balance;
-            }
-            function handleBetChange() {
-                let bet = parseFloat(allSelectors.betAmountInput.value); if (isNaN(bet) || bet < 1) bet = 1; if (bet > balance) bet = balance; allSelectors.betAmountInput.value = Math.floor(bet);
-            }
-            function setControlsDisabled(disabled) {
-                allSelectors.dropButton.disabled = disabled;
-                allSelectors.riskButtons.forEach(btn => btn.disabled = disabled);
-                allSelectors.stepperButtons.forEach(btn => btn.disabled = disabled);
-                allSelectors.betAmountInput.disabled = disabled;
-                allSelectors.autoDropCountInput.disabled = disabled;
-                if (!disabled) { allSelectors.autoDropButton.disabled = false; }
-            }
-            
+            function updateBalanceUI() { const f = `$${balance.toFixed(2)}`; allSelectors.balanceElement.textContent = f; allSelectors.profileBalanceElement.textContent = f; allSelectors.betAmountInput.max = balance; }
+            function handleBetChange() { let b = parseFloat(allSelectors.betAmountInput.value); if (isNaN(b) || b < 1) b = 1; if (b > balance) b = balance; allSelectors.betAmountInput.value = Math.floor(b); }
+            function setControlsDisabled(disabled) { allSelectors.dropButton.disabled = disabled; allSelectors.riskButtons.forEach(b => b.disabled = disabled); allSelectors.stepperButtons.forEach(b => b.disabled = disabled); allSelectors.betAmountInput.disabled = disabled; allSelectors.autoDropCountInput.disabled = disabled; if (!disabled) { allSelectors.autoDropButton.disabled = false; } }
             function performDrop(betCost, betValue) {
                 if (betCost > 0) { balance -= betCost; updateBalanceUI(); }
-                const chipId = chipIdCounter++;
-                const chipElement = document.createElement('div');
-                chipElement.className = 'chip';
-                chipElement.style.width = `${CHIP_RADIUS * 2}px`; chipElement.style.height = `${CHIP_RADIUS * 2}px`;
-                const newChip = { id: chipId, x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, betAmount: betValue, element: chipElement, vx: (Math.random() - 0.5) * 2, vy: 0, };
-                chipElement.style.left = `${newChip.x}px`; chipElement.style.top = `${newChip.y}px`; chipElement.style.visibility = 'visible';
-                allSelectors.board.appendChild(chipElement); activeChips.push(newChip);
+                const chipId = chipIdCounter++, chipEl = document.createElement('div'); chipEl.className = 'chip'; chipEl.style.width = `${CHIP_RADIUS * 2}px`; chipEl.style.height = `${CHIP_RADIUS * 2}px`;
+                const newChip = { id: chipId, x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, betAmount: betValue, element: chipEl, vx: (Math.random() - 0.5) * 2, vy: 0, };
+                chipEl.style.left = `${newChip.x}px`; chipEl.style.top = `${newChip.y}px`; chipEl.style.visibility = 'visible';
+                allSelectors.board.appendChild(chipEl); activeChips.push(newChip);
                 if (!isDropping) { isDropping = true; document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight')); requestAnimationFrame(updatePhysics); }
             }
-            
             function updatePhysics() {
                 if (activeChips.length === 0) { isDropping = false; if (!isAutoDropping) { setControlsDisabled(false); } return; }
                 for (let i = activeChips.length - 1; i >= 0; i--) {
@@ -452,7 +379,8 @@
                             const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
                             chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
                             const normalX = dx / dist, normalY = dy / dist, dot = chip.vx * normalX + chip.vy * normalY;
-                            chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING; chip.vx += (Math.random() - 0.5) * 0.5;
+                            chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                            chip.vx += (Math.random() - 0.5) * 0.25; // Reduced horizontal kick for lower win probability
                         }
                     });
                     chip.element.style.left = `${chip.x}px`; chip.element.style.top = `${chip.y}px`;
@@ -460,73 +388,44 @@
                 }
                 requestAnimationFrame(updatePhysics);
             }
-
             function endDrop(chip) {
                 chip.element.remove();
-                const multipliers = riskLevelConfigs[currentRisk].multipliers, slotWidth = BOARD_WIDTH / multipliers.length;
-                let slotIndex = Math.floor(chip.x / slotWidth); slotIndex = Math.max(0, Math.min(multipliers.length - 1, slotIndex));
-                const multiplier = multipliers[slotIndex], winnings = chip.betAmount * multiplier;
-                balance += winnings;
-                const targetSlot = document.querySelectorAll('.slot')[slotIndex];
-                targetSlot.classList.remove('highlight'); void targetSlot.offsetWidth; targetSlot.classList.add('highlight');
-                try { if (multiplier >= 10) tg.HapticFeedback.notificationOccurred('success'); else if (multiplier >= 1) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+                const m = riskLevelConfigs[currentRisk].multipliers, sW = BOARD_WIDTH / m.length;
+                let sI = Math.floor(chip.x / sW); sI = Math.max(0, Math.min(m.length - 1, sI));
+                const mult = m[sI], winnings = chip.betAmount * mult; balance += winnings;
+                const tS = document.querySelectorAll('.slot')[sI]; tS.classList.remove('highlight'); void tS.offsetWidth; tS.classList.add('highlight');
+                try { if (mult >= 10) tg.HapticFeedback.notificationOccurred('success'); else if (mult >= 1) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
                 updateBalanceUI();
             }
-            
             function dropChip() {
                 if (isDropping && activeChips.length > 0) return;
-                const betAmount = parseFloat(allSelectors.betAmountInput.value);
-                if (betAmount > balance) { alert("Недостаточно средств!"); return; }
+                const bet = parseFloat(allSelectors.betAmountInput.value); if (bet > balance) { alert("Недостаточно средств!"); return; }
                 try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
-                setControlsDisabled(true);
-                performDrop(betAmount, betAmount);
+                setControlsDisabled(true); performDrop(bet, bet);
             }
-            
             function startAutoDrop() {
-                if (isAutoDropping) { stopAutoDrop(); return; }
-                if (isDropping && activeChips.length > 0) return;
-                const betAmount = parseFloat(allSelectors.betAmountInput.value);
-                const dropCount = parseInt(allSelectors.autoDropCountInput.value, 10);
-                const totalCost = betAmount * dropCount;
-                if (totalCost > balance) { alert("Недостаточно средств для всех авто-бросков!"); return; }
+                if (isAutoDropping) { stopAutoDrop(); return; } if (isDropping && activeChips.length > 0) return;
+                const bet = parseFloat(allSelectors.betAmountInput.value), count = parseInt(allSelectors.autoDropCountInput.value, 10), cost = bet * count;
+                if (cost > balance) { alert("Недостаточно средств для всех авто-бросков!"); return; }
                 try { tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
                 isAutoDropping = true; setControlsDisabled(true); allSelectors.autoDropButton.disabled = false; allSelectors.autoDropButton.textContent = 'Стоп';
-                balance -= totalCost; updateBalanceUI();
-                let dropsMade = 0;
-                autoDropInterval = setInterval(() => {
-                    if (dropsMade >= dropCount) { stopAutoDrop(false); return; }
-                    performDrop(0, betAmount); dropsMade++;
-                }, 200);
+                balance -= cost; updateBalanceUI(); let drops = 0;
+                autoDropInterval = setInterval(() => { if (drops >= count) { stopAutoDrop(false); return; } performDrop(0, bet); drops++; }, 200);
             }
-
-            function stopAutoDrop(immediately = true) {
+            function stopAutoDrop(imm = true) {
                 if (autoDropInterval) { clearInterval(autoDropInterval); autoDropInterval = null; }
                 isAutoDropping = false; allSelectors.autoDropButton.textContent = 'Старт';
-                if (immediately && activeChips.length === 0) { setControlsDisabled(false); } 
-                else { const check = setInterval(() => { if (activeChips.length === 0) { clearInterval(check); setControlsDisabled(false); } }, 200); }
+                if (imm && activeChips.length === 0) { setControlsDisabled(false); } else { const ch = setInterval(() => { if (activeChips.length === 0) { clearInterval(ch); setControlsDisabled(false); } }, 200); }
             }
-
             function handleStepper(event) {
-                const button = event.currentTarget;
-                const action = button.dataset.action;
-                const targetId = button.dataset.target;
-                const input = document.getElementById(targetId);
-
+                const btn = event.currentTarget, action = btn.dataset.action, targetId = btn.dataset.target, input = document.getElementById(targetId);
                 if (input) {
-                    let value = parseInt(input.value, 10) || 0;
-                    const step = (targetId === 'bet-amount' && value >= 100) ? 10 : 1;
-                    const min = parseInt(input.min, 10);
-                    const max = parseInt(input.max, 10);
-
-                    if (action === 'plus') { value = Math.min(value + step, max); } 
-                    else if (action === 'minus') { value = Math.max(value - step, min); }
-                    
-                    input.value = value;
-                    if (targetId === 'bet-amount') handleBetChange();
+                    let val = parseInt(input.value, 10) || 0, step = (targetId === 'bet-amount' && val >= 100) ? 10 : 1, min = parseInt(input.min, 10), max = parseInt(input.max, 10);
+                    if (action === 'plus') val = Math.min(val + step, max); else if (action === 'minus') val = Math.max(val - step, min);
+                    input.value = val; if (targetId === 'bet-amount') handleBetChange();
                 }
             }
             
-            // --- Event Listeners & Initial Setup ---
             allSelectors.riskButtons.forEach(b => b.addEventListener('click', () => setupBoard(b.dataset.risk)));
             allSelectors.dropButton.addEventListener('click', dropChip);
             allSelectors.autoDropButton.addEventListener('click', startAutoDrop);
@@ -534,9 +433,7 @@
             allSelectors.stepperButtons.forEach(b => b.addEventListener('click', handleStepper));
             window.addEventListener('resize', () => setupBoard(currentRisk));
             
-            initProfile();
-            setupBoard(currentRisk);
-            updateBalanceUI();
+            initProfile(); setupBoard(currentRisk); updateBalanceUI();
         });
     </script>
 </body>
