@@ -31,6 +31,7 @@
             --highlight-primary: #a855f7; /* Vibrant Purple */
             --highlight-secondary: #00f5ff; /* Bright Cyan */
             --button-secondary-bg: linear-gradient(45deg, #ec4899, #d946ef);
+            --stepper-bg: #2c336b;
 
             --slot-high: #8e44ad;
             --slot-mid: #5a57c4;
@@ -49,8 +50,7 @@
             display: flex;
             justify-content: center;
             min-height: 100%;
-            padding: 20px 15px;
-            padding-bottom: calc(var(--nav-height) + 30px);
+            padding: 40px 15px calc(var(--nav-height) + 30px); /* Increased top padding */
             overflow-y: auto;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -58,7 +58,7 @@
         #app-container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
         .view { display: none; flex-direction: column; align-items: center; width: 100%; gap: 15px; }
         .view.active { display: flex; }
-        header { width: 100%; text-align: center; }
+        header { width: 100%; text-align: center; margin-bottom: 5px; }
         header h1 {
             font-size: clamp(1.8rem, 7vw, 2.5rem);
             font-weight: 700;
@@ -81,13 +81,14 @@
             box-shadow: inset 0 0 25px rgba(0,0,0,0.5);
             border: 1px solid var(--border-color);
             border-bottom: none;
+            overflow: hidden;
         }
         .peg {
             width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%;
             position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3);
             transform: translate(-50%, -50%);
         }
-        #chip {
+        .chip {
             position: absolute; background-color: var(--chip-color); border-radius: 50%;
             filter: drop-shadow(0 0 8px var(--chip-color)) drop-shadow(0 0 15px var(--chip-color));
             visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s;
@@ -107,77 +108,55 @@
         }
         .slot.highlight { animation: highlight-win 0.6s ease-out; z-index: 10; }
         .panel {
-            background-color: var(--surface-color); padding: 20px; border-radius: 20px;
-            width: 100%; display: flex; flex-direction: column; gap: 15px;
+            background-color: var(--surface-color); padding: 12px; border-radius: 20px;
+            width: 100%; display: flex; flex-direction: column; gap: 10px;
             border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
-        .control-group {
+        .balance-display {
             display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-color);
             border: 1px solid var(--border-color); border-radius: 12px; padding: 8px 15px;
         }
-        .control-group label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
-        .control-group .value, .control-group input {
-            background: none; border: none; outline: none; color: var(--text-color);
-            font-size: 1.1rem; font-weight: 600; text-align: right; width: 120px;
-        }
-        input[type=number] { -moz-appearance: textfield; }
-        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        .button-group { display: flex; gap: 10px; }
-        .button-group button { flex-grow: 1; }
-        .risk-selector {
-            display: flex; background-color: var(--bg-color); border-radius: 12px;
-            border: 1px solid var(--border-color); overflow: hidden; padding: 4px;
-        }
-        .risk-button {
-            flex-grow: 1; padding: 10px; border: none; background: none; border-radius: 9px;
-            color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600;
-            cursor: pointer; transition: all 0.3s ease;
-        }
-        .risk-button.active { background-color: var(--highlight-primary); color: white; text-shadow: 0 0 5px rgba(0,0,0,0.4); }
+        .balance-display label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
+        .balance-display .value { background: none; border: none; outline: none; color: var(--text-color); font-size: 1.1rem; font-weight: 600; text-align: right; }
+        
+        /* Ultra-Compact Controls Layout */
+        .controls-grid { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: auto auto; gap: 8px; }
+        .stepper-input-group, .risk-selector { background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: center; padding: 4px; height: 48px;}
+        .stepper-input-group { padding-left: 10px; }
+        .stepper-input-group label { font-size: 0.8rem; color: var(--text-muted); margin-right: auto;}
+        .stepper-input-group input { background: transparent; border: none; color: var(--text-color); font-weight: 600; font-size: 1rem; text-align: center; width: 60px; -moz-appearance: textfield; }
+        .stepper-input-group input::-webkit-inner-spin-button, .stepper-input-group input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .stepper-button { background: var(--stepper-bg); border: none; color: var(--text-color); width: 28px; height: 28px; border-radius: 8px; font-size: 1.2rem; line-height: 1; cursor: pointer; transition: background 0.2s; margin: 0 4px; }
+        .stepper-button:hover { background: #3a417a; }
+        #drop-button { grid-column: 2 / 3; grid-row: 1 / 3; }
+        #auto-drop-controls { grid-column: 1 / 2; grid-row: 2 / 3; }
+        .risk-selector { padding: 3px; height: 48px; }
+        .risk-button { flex-grow: 1; padding: 8px 5px; border: none; background: none; border-radius: 9px; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.3s ease; }
+        .risk-button.active { background-color: var(--highlight-primary); color: white; }
+        
         .main-button {
-            padding: 15px; font-size: 1.2rem; font-weight: 700; cursor: pointer; border: none;
-            border-radius: 12px; color: var(--button-primary-text-color);
-            text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            transition: all 0.2s ease;
+            padding: 12px; font-size: 1.2rem; font-weight: 700; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.2s ease;
+            display: flex; justify-content: center; align-items: center; height: 100%;
         }
         #drop-button { background: var(--button-primary-bg); }
-        #auto-drop-button { background: var(--button-secondary-bg); }
+        #auto-drop-button { background: var(--button-secondary-bg); flex-shrink: 0; padding: 0 15px; font-size: 0.9rem; margin-left: auto; height: 36px; border-radius: 8px; }
+        
         .main-button:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); filter: brightness(1.1); }
         .main-button:active:not(:disabled) { transform: translateY(-1px); }
-        .main-button:disabled { background: #4a5568; cursor: not-allowed; transform: none; box-shadow: none; }
-        #bottom-nav {
-            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%;
-            max-width: 500px; height: var(--nav-height); background-color: var(--surface-color);
-            display: flex; justify-content: space-around; align-items: center;
-            box-shadow: 0 -5px 30px rgba(0,0,0,0.3); border-top: 1px solid var(--border-color); z-index: 100;
-        }
-        .nav-button {
-            background: none; border: none; color: var(--text-muted); font-family: 'Poppins', sans-serif;
-            font-size: 0.7rem; font-weight: 600; cursor: pointer; padding: 10px; display: flex;
-            flex-direction: column; align-items: center; gap: 4px; opacity: 0.7; transition: all 0.3s ease; position: relative;
-        }
+        .main-button:disabled { background: #4a5568 !important; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
+        
+        #bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 500px; height: var(--nav-height); background-color: var(--surface-color); display: flex; justify-content: space-around; align-items: center; box-shadow: 0 -5px 30px rgba(0,0,0,0.3); border-top: 1px solid var(--border-color); z-index: 100; }
+        .nav-button { background: none; border: none; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-size: 0.7rem; font-weight: 600; cursor: pointer; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0.7; transition: all 0.3s ease; position: relative; }
         .nav-button.active { color: var(--highlight-primary); opacity: 1; transform: translateY(-3px); }
-        .nav-button.active::after {
-            content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
-            width: 6px; height: 6px; border-radius: 50%; background-color: var(--highlight-primary);
-        }
+        .nav-button.active::after { content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; border-radius: 50%; background-color: var(--highlight-primary); }
         .nav-button svg { width: 24px; height: 24px; fill: currentColor; }
         .info-text { text-align: center; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
-        .referral-link-container {
-            display: flex; background-color: var(--bg-color); border: 1px solid var(--border-color);
-            border-radius: 12px; padding: 12px; align-items: center; gap: 10px; margin: 10px 0;
-        }
+        .referral-link-container { display: flex; background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; align-items: center; gap: 10px; margin: 10px 0; }
         #referral-link { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
-        .copy-button {
-            background: var(--highlight-primary); border: none; border-radius: 8px; color: var(--button-primary-text-color);
-            padding: 8px 12px; cursor: pointer; font-weight: 600; transition: background 0.2s ease;
-        }
+        .copy-button { background: var(--highlight-primary); border: none; border-radius: 8px; color: var(--button-primary-text-color); padding: 8px 12px; cursor: pointer; font-weight: 600; transition: background 0.2s ease; }
         .copy-button:hover { background: #9333ea; }
-        #profile-avatar {
-            width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--highlight-primary);
-            margin: 0 auto 15px auto; display: block; object-fit: cover;
-            box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
-        }
+        #profile-avatar { width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--highlight-primary); margin: 0 auto 15px auto; display: block; object-fit: cover; box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
         #profile-name { text-align: center; font-size: 1.8rem; font-weight: 700; }
         #profile-username { text-align: center; color: var(--text-muted); font-size: 1rem; margin-bottom: 25px; }
         .section-divider { border-top: 1px solid var(--border-color); padding-top: 20px; margin-top: 20px; }
@@ -188,27 +167,38 @@
     <div id="app-container">
         
         <div id="main-game-view" class="view active">
-            <header><h1>Плинко</h1></header>
             <div id="plinko-board-container">
                 <div id="plinko-board"></div>
-                <div id="chip"></div>
             </div>
             <div id="slots-container"></div>
             <div class="panel">
-                <div class="control-group"> <label>Баланс</label> <div id="balance" class="value">$2000.00</div> </div>
-                <div class="risk-selector">
-                    <button class="risk-button" data-risk="low">Низкий</button>
-                    <button class="risk-button active" data-risk="medium">Средний</button>
-                    <button class="risk-button" data-risk="high">Высокий</button>
+                <div class="balance-display"> <label>Баланс</label> <div id="balance" class="value">$2000.00</div> </div>
+                <div class="controls-grid">
+                    <div class="stepper-input-group" id="bet-amount-controls">
+                        <label>Ставка</label>
+                        <button class="stepper-button" data-action="minus" data-target="bet-amount">-</button>
+                        <input type="number" id="bet-amount" value="10" min="1" step="1">
+                        <button class="stepper-button" data-action="plus" data-target="bet-amount">+</button>
+                    </div>
+                    <div class="risk-selector">
+                        <button class="risk-button" data-risk="low">Низкий</button>
+                        <button class="risk-button active" data-risk="medium">Средний</button>
+                        <button class="risk-button" data-risk="high">Высокий</button>
+                    </div>
+                    <div class="stepper-input-group" id="auto-drop-controls">
+                        <label>Авто</label>
+                        <button class="stepper-button" data-action="minus" data-target="auto-drop-count">-</button>
+                        <input type="number" id="auto-drop-count" value="10" min="1" max="100">
+                        <button class="stepper-button" data-action="plus" data-target="auto-drop-count">+</button>
+                        <button id="auto-drop-button" class="main-button">Старт</button>
+                    </div>
+                    <button id="drop-button" class="main-button">Бросить</button>
                 </div>
-                <div class="control-group"> <label>Сумма ставки</label> <input type="number" id="bet-amount" value="10" min="1" step="1"> </div>
-                <div class="control-group"> <label>Авто-броски</label> <input type="number" id="auto-drop-count" value="10" min="1" max="100"> </div>
-                <div class="button-group"> <button id="drop-button" class="main-button">Бросить</button> <button id="auto-drop-button" class="main-button">Авто</button> </div>
             </div>
         </div>
 
-        <div id="free-spin-view" class="view">
-            <header><h1>Free Spin</h1></header>
+        <div id="free-try-view" class="view">
+            <header><h1>Free Try</h1></header>
             <div class="panel">
                 <p class="info-text">Получайте бесплатный бросок каждые 24 часа!</p>
                 <div id="timer-container" style="text-align:center; margin: 20px 0;">
@@ -226,16 +216,16 @@
                 <h2 id="profile-name">Тестовый Пользователь</h2>
                 <p id="profile-username">@test_user</p>
                 
-                <div class="control-group">
+                <div class="balance-display" style="padding: 12px 15px;">
                     <label>Баланс</label>
                     <div id="profile-balance" class="value">$2000.00</div>
                 </div>
 
                 <div class="top-up-section" style="margin-top: 5px;">
                     <h3 style="text-align:center; margin-bottom:15px; font-size:1.1rem; color:var(--text-muted);">Пополнить баланс</h3>
-                    <div class="button-group">
-                        <button id="topup-gifts-btn" class="main-button" style="background: var(--button-secondary-bg); font-size: 1.1rem; padding: 12px;">🎁 Подарками</button>
-                        <button id="topup-ton-btn" class="main-button" style="background: var(--button-primary-bg); font-size: 1.1rem; padding: 12px;">💎 TON</button>
+                    <div class="button-group" style="display:flex; gap:10px;">
+                        <button id="topup-gifts-btn" class="main-button" style="background: var(--button-secondary-bg); font-size: 1.1rem; padding: 12px; flex:1;">🎁 Подарками</button>
+                        <button id="topup-ton-btn" class="main-button" style="background: var(--button-primary-bg); font-size: 1.1rem; padding: 12px; flex:1;">💎 TON</button>
                     </div>
                 </div>
 
@@ -245,16 +235,16 @@
                         <span id="referral-link">t.me/your_bot_name?start=ref12345</span>
                         <button class="copy-button" id="copy-link-btn">Копировать</button>
                     </div>
-                    <button id="share-link-btn" class="main-button" style="font-size: 1.1rem; padding: 12px;">Поделиться</button>
+                    <button id="share-link-btn" class="main-button" style="font-size: 1.1rem; padding: 12px; width:100%;">Поделиться</button>
                 </div>
              </div>
         </div>
     </div>
 
     <nav id="bottom-nav">
-        <button class="nav-button" data-view="free-spin-view">
+        <button class="nav-button" data-view="free-try-view">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20,6H18.18C18.09,5.69 18,5.35 18,5A3,3 0 0,0 15,2C13.95,2 13.04,2.54 12.5,3.35C11.96,2.54 11.05,2 10,2A3,3 0 0,0 7,5C7,5.35 7.09,5.69 7.18,6H4A2,2 0 0,0 2,8V19A2,2 0 0,0 4,21H20A2,2 0 0,0 22,19V8A2,2 0 0,0 20,6M15,4A1,1 0 0,1 16,5A1,1 0 0,1 15,6A1,1 0 0,1 14,5A1,1 0 0,1 15,4M10,4A1,1 0 0,1 11,5A1,1 0 0,1 10,6A1,1 0 0,1 9,5A1,1 0 0,1 10,4M20,19H4V8H20V19Z" fill="currentColor"/></svg>
-            <span>Free Spin</span>
+            <span>Free Try</span>
         </button>
         <button class="nav-button active" data-view="main-game-view">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" /></svg>
@@ -283,6 +273,7 @@
                             --border-color: ${theme.hint_color}33;
                             --button-primary-bg: ${theme.button_color};
                             --button-primary-text-color: ${theme.button_text_color};
+                            --stepper-bg: ${theme.bg_color};
                         }
                         #bottom-nav { background-color: ${theme.secondary_bg_color}cc; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
                         .main-button { color: ${theme.button_text_color}; }
@@ -292,36 +283,33 @@
                 } catch (e) { console.warn("Could not apply Telegram theme.", e); }
             }
 
-            try {
-                tg.ready();
-                tg.expand();
-                applyTelegramTheme();
-            } catch (e) { console.error("Telegram WebApp script not found or failed.", e); }
+            try { tg.ready(); tg.expand(); applyTelegramTheme(); } 
+            catch (e) { console.error("Telegram WebApp script not found or failed.", e); }
 
             // --- Selectors ---
             const allSelectors = {
-                board: document.getElementById('plinko-board'), chipElement: document.getElementById('chip'), slotsContainer: document.getElementById('slots-container'),
+                board: document.getElementById('plinko-board'), slotsContainer: document.getElementById('slots-container'),
                 dropButton: document.getElementById('drop-button'), autoDropButton: document.getElementById('auto-drop-button'), balanceElement: document.getElementById('balance'),
                 profileBalanceElement: document.getElementById('profile-balance'), betAmountInput: document.getElementById('bet-amount'),
                 riskButtons: document.querySelectorAll('.risk-button'), autoDropCountInput: document.getElementById('auto-drop-count'),
                 navButtons: document.querySelectorAll('.nav-button'), views: document.querySelectorAll('.view'), copyLinkBtn: document.getElementById('copy-link-btn'),
                 shareLinkBtn: document.getElementById('share-link-btn'), referralLinkElement: document.getElementById('referral-link'),
-                claimFreeDropBtn: document.getElementById('claim-free-drop-btn'), timerElement: document.getElementById('timer')
+                claimFreeDropBtn: document.getElementById('claim-free-drop-btn'), timerElement: document.getElementById('timer'),
+                stepperButtons: document.querySelectorAll('.stepper-button'),
             };
             
             // --- State ---
-            let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS;
+            let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
+            // RTP ~50% Multipliers
             const riskLevelConfigs = {
-                low: { rows: 8, cols: 10, multipliers: [4, 2, 1.2, 0.7, 0.5, 0.5, 0.7, 1.2, 2, 4] },
-                medium: { rows: 12, cols: 14, multipliers: [10, 5, 2.5, 1, 0.5, 0.4, 0.4, 0.5, 1, 2.5, 5, 10] },
-                high: { rows: 16, cols: 18, multipliers: [100, 15, 5, 2, 0.5, 0.2, 1, 0, 1, 0.2, 0.5, 2, 5, 15, 100] }
+                low:    { rows: 8,  cols: 10, multipliers: [1, 0.8, 0.6, 0.4, 0.2, 0.2, 0.4, 0.6, 0.8, 1] },
+                medium: { rows: 12, cols: 14, multipliers: [5, 1.5, 0.5, 0.3, 0.2, 0.1, 0.1, 0.2, 0.3, 0.5, 1.5, 5] },
+                high:   { rows: 16, cols: 18, multipliers: [15, 5, 1, 0.2, 0.1, 0, 0, 0, 0, 0, 0.1, 0.2, 1, 5, 15] }
             };
-            let PEG_RADIUS;
             let GRAVITY = 0.25, DAMPING = 0.55;
-            let balance = 2000.00, currentRisk = 'medium', isDropping = false, isAutoDropping = false, autoDropsRemaining = 0, pegs = [], chip = { x: 0, y: 0, vx: 0, vy: 0 };
-            let currentDropBet = 0;
-            const FREE_DROP_INTERVAL = 24 * 60 * 60 * 1000;
-            const FREE_DROP_BASE_BET = 1.00;
+            let balance = 2000.00, currentRisk = 'medium', isDropping = false, isAutoDropping = false, autoDropInterval = null, pegs = [], activeChips = [];
+            let chipIdCounter = 0;
+            const FREE_DROP_INTERVAL = 24 * 60 * 60 * 1000, FREE_DROP_BASE_BET = 1.00;
             let freeDropTimerInterval = null;
             
             function generateAvatar(name) {
@@ -356,7 +344,7 @@
                 allSelectors.views.forEach(v => v.classList.toggle('active', v.id === viewId));
                 allSelectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
                 if (viewId === 'main-game-view') { setTimeout(() => setupBoard(currentRisk), 0); }
-                else if (viewId === 'free-spin-view') { initFreeSpinView(); }
+                else if (viewId === 'free-try-view') { initFreeTryView(); }
             }
             allSelectors.navButtons.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
 
@@ -382,16 +370,19 @@
                     allSelectors.timerElement.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
                 }
             }
-            function initFreeSpinView() { updateFreeDropTimer(); if(freeDropTimerInterval) clearInterval(freeDropTimerInterval); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
+            function initFreeTryView() { updateFreeDropTimer(); if(freeDropTimerInterval) clearInterval(freeDropTimerInterval); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
             function handleClaimFreeDrop() {
                 if (isDropping) return;
-                localStorage.setItem('lastFreeDropClaim', Date.now().toString()); initFreeSpinView(); switchView('main-game-view');
-                setTimeout(() => performDrop(0, FREE_DROP_BASE_BET), 100);
+                localStorage.setItem('lastFreeDropClaim', Date.now().toString()); initFreeTryView(); switchView('main-game-view');
+                setTimeout(() => {
+                    setupBoard('low');
+                    setTimeout(() => performDrop(0, FREE_DROP_BASE_BET), 50);
+                }, 100);
             }
             allSelectors.claimFreeDropBtn.addEventListener('click', handleClaimFreeDrop);
             
             function getSlotColor(m) {
-                if (m >= 10) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)'; if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)';
+                if (m >= 5) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)'; if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)';
             }
             function setupBoard(risk) {
                 if (isDropping) return; currentRisk = risk; BOARD_WIDTH = allSelectors.board.clientWidth; if (BOARD_WIDTH === 0) return;
@@ -400,7 +391,6 @@
                 else { CHIP_RADIUS = BOARD_WIDTH / 45; GRAVITY = 0.25; }
 
                 const config = riskLevelConfigs[risk]; pegs = []; allSelectors.board.innerHTML = ''; allSelectors.slotsContainer.innerHTML = '';
-                allSelectors.chipElement.style.width = `${CHIP_RADIUS * 2}px`; allSelectors.chipElement.style.height = `${CHIP_RADIUS * 2}px`;
                 const hSpacing = BOARD_WIDTH / config.cols, vSpacing = BOARD_HEIGHT / (config.rows + 1);
                 for (let r = 0; r < config.rows; r++) {
                     const numPegs = r % 2 === 0 ? config.cols - 1 : config.cols; const xOffset = r % 2 === 0 ? hSpacing : hSpacing / 2;
@@ -425,65 +415,124 @@
                 let bet = parseFloat(allSelectors.betAmountInput.value); if (isNaN(bet) || bet < 1) bet = 1; if (bet > balance) bet = balance; allSelectors.betAmountInput.value = Math.floor(bet);
             }
             function setControlsDisabled(disabled) {
-                allSelectors.dropButton.disabled = allSelectors.autoDropButton.disabled = allSelectors.betAmountInput.disabled = disabled;
+                allSelectors.dropButton.disabled = disabled;
                 allSelectors.riskButtons.forEach(btn => btn.disabled = disabled);
-            }
-            function performDrop(betToDeduct, betForWinnings) {
-                if (isDropping) return;
-                if (betToDeduct > balance) { alert("Недостаточно средств!"); stopAutoDrop(); return; }
-                try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
-                isDropping = true; setControlsDisabled(true); currentDropBet = betForWinnings; balance -= betToDeduct; updateBalanceUI();
-                const vRange = 1.5 + (Math.min(currentDropBet / 250, 1.0) * 2.0);
-                chip = { x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, vx: (Math.random() - 0.5) * vRange, vy: 0 };
-                allSelectors.chipElement.style.left = `${chip.x}px`; allSelectors.chipElement.style.top = `${chip.y}px`; allSelectors.chipElement.style.visibility = 'visible';
-                document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
-                requestAnimationFrame(updatePhysics);
-            }
-            function dropChip() { const betAmount = parseFloat(allSelectors.betAmountInput.value); performDrop(betAmount, betAmount); }
-            function startAutoDrop() { isAutoDropping ? stopAutoDrop() : (isAutoDropping = true, autoDropsRemaining = parseInt(allSelectors.autoDropCountInput.value, 10), allSelectors.autoDropButton.textContent = 'Стоп', dropChip()); }
-            function stopAutoDrop() { isAutoDropping = false; autoDropsRemaining = 0; allSelectors.autoDropButton.textContent = 'Авто'; if(!isDropping) setControlsDisabled(false); }
-            function updatePhysics() {
-                if (!isDropping) return; chip.vy += GRAVITY; chip.x += chip.vx; chip.y += chip.vy;
-                if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) { chip.vx *= -DAMPING; chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS)); }
-                pegs.forEach(peg => {
-                    const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < CHIP_RADIUS + PEG_RADIUS) {
-                        const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
-                        chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
-                        const normalX = dx / dist, normalY = dy / dist, dot = chip.vx * normalX + chip.vy * normalY;
-                        chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING; chip.vx += (Math.random() - 0.5) * 0.5;
-                    }
-                });
-                allSelectors.chipElement.style.left = `${chip.x}px`; allSelectors.chipElement.style.top = `${chip.y}px`;
-                chip.y - CHIP_RADIUS > BOARD_HEIGHT ? endDrop() : requestAnimationFrame(updatePhysics);
-            }
-            function endDrop() {
-                isDropping = false; allSelectors.chipElement.style.visibility = 'hidden';
-                const multipliers = riskLevelConfigs[currentRisk].multipliers, slotWidth = BOARD_WIDTH / multipliers.length;
-                let slotIndex = Math.floor(chip.x / slotWidth); slotIndex = Math.max(0, Math.min(multipliers.length - 1, slotIndex));
-                const multiplier = multipliers[slotIndex], winnings = currentDropBet * multiplier; balance += winnings;
-                document.querySelectorAll('.slot')[slotIndex].classList.add('highlight');
-
-                try {
-                    if (multiplier >= 5) tg.HapticFeedback.notificationOccurred('success');
-                    else if (multiplier > 0) tg.HapticFeedback.impactOccurred('medium');
-                    else tg.HapticFeedback.notificationOccurred('warning');
-                } catch (e) {}
-                
-                setTimeout(() => {
-                    updateBalanceUI(); handleBetChange();
-                    if (isAutoDropping && autoDropsRemaining > 1) { autoDropsRemaining--; allSelectors.autoDropCountInput.value = autoDropsRemaining; dropChip(); } else { stopAutoDrop(); }
-                }, isAutoDropping ? 150 : 500);
+                allSelectors.stepperButtons.forEach(btn => btn.disabled = disabled);
+                allSelectors.betAmountInput.disabled = disabled;
+                allSelectors.autoDropCountInput.disabled = disabled;
+                // Allow stopping auto drop even when controls are disabled
+                if (!disabled) { allSelectors.autoDropButton.disabled = false; }
             }
             
-            // --- Initial Setup ---
+            function performDrop(betCost, betValue) {
+                if (betCost > 0) { balance -= betCost; updateBalanceUI(); }
+                const chipId = chipIdCounter++;
+                const chipElement = document.createElement('div');
+                chipElement.className = 'chip';
+                chipElement.style.width = `${CHIP_RADIUS * 2}px`; chipElement.style.height = `${CHIP_RADIUS * 2}px`;
+                const newChip = { id: chipId, x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, betAmount: betValue, element: chipElement, vx: (Math.random() - 0.5) * 2, vy: 0, };
+                chipElement.style.left = `${newChip.x}px`; chipElement.style.top = `${newChip.y}px`; chipElement.style.visibility = 'visible';
+                allSelectors.board.appendChild(chipElement); activeChips.push(newChip);
+                if (!isDropping) { isDropping = true; document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight')); requestAnimationFrame(updatePhysics); }
+            }
+            
+            function updatePhysics() {
+                if (activeChips.length === 0) { isDropping = false; if (!isAutoDropping) { setControlsDisabled(false); } return; }
+                for (let i = activeChips.length - 1; i >= 0; i--) {
+                    const chip = activeChips[i];
+                    chip.vy += GRAVITY; chip.x += chip.vx; chip.y += chip.vy;
+                    if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) { chip.vx *= -DAMPING; chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS)); }
+                    pegs.forEach(peg => {
+                        const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < CHIP_RADIUS + PEG_RADIUS) {
+                            const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
+                            chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
+                            const normalX = dx / dist, normalY = dy / dist, dot = chip.vx * normalX + chip.vy * normalY;
+                            chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING; chip.vx += (Math.random() - 0.5) * 0.5;
+                        }
+                    });
+                    chip.element.style.left = `${chip.x}px`; chip.element.style.top = `${chip.y}px`;
+                    if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) { endDrop(chip); activeChips.splice(i, 1); }
+                }
+                requestAnimationFrame(updatePhysics);
+            }
+
+            function endDrop(chip) {
+                chip.element.remove();
+                const multipliers = riskLevelConfigs[currentRisk].multipliers, slotWidth = BOARD_WIDTH / multipliers.length;
+                let slotIndex = Math.floor(chip.x / slotWidth); slotIndex = Math.max(0, Math.min(multipliers.length - 1, slotIndex));
+                const multiplier = multipliers[slotIndex], winnings = chip.betAmount * multiplier;
+                balance += winnings;
+                const targetSlot = document.querySelectorAll('.slot')[slotIndex];
+                targetSlot.classList.remove('highlight'); void targetSlot.offsetWidth; targetSlot.classList.add('highlight');
+                try { if (multiplier >= 5) tg.HapticFeedback.notificationOccurred('success'); else if (multiplier >= 1) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+                updateBalanceUI();
+            }
+            
+            function dropChip() {
+                if (isDropping && activeChips.length > 0) return;
+                const betAmount = parseFloat(allSelectors.betAmountInput.value);
+                if (betAmount > balance) { alert("Недостаточно средств!"); return; }
+                try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+                setControlsDisabled(true);
+                performDrop(betAmount, betAmount);
+            }
+            
+            function startAutoDrop() {
+                if (isAutoDropping) { stopAutoDrop(); return; }
+                if (isDropping && activeChips.length > 0) return;
+                const betAmount = parseFloat(allSelectors.betAmountInput.value);
+                const dropCount = parseInt(allSelectors.autoDropCountInput.value, 10);
+                const totalCost = betAmount * dropCount;
+                if (totalCost > balance) { alert("Недостаточно средств для всех авто-бросков!"); return; }
+                try { tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+                isAutoDropping = true; setControlsDisabled(true); allSelectors.autoDropButton.disabled = false; allSelectors.autoDropButton.textContent = 'Стоп';
+                balance -= totalCost; updateBalanceUI();
+                let dropsMade = 0;
+                autoDropInterval = setInterval(() => {
+                    if (dropsMade >= dropCount) { stopAutoDrop(false); return; }
+                    performDrop(0, betAmount); dropsMade++;
+                }, 200);
+            }
+
+            function stopAutoDrop(immediately = true) {
+                if (autoDropInterval) { clearInterval(autoDropInterval); autoDropInterval = null; }
+                isAutoDropping = false; allSelectors.autoDropButton.textContent = 'Старт';
+                if (immediately && activeChips.length === 0) { setControlsDisabled(false); } 
+                else { const check = setInterval(() => { if (activeChips.length === 0) { clearInterval(check); setControlsDisabled(false); } }, 200); }
+            }
+
+            function handleStepper(event) {
+                const button = event.currentTarget;
+                const action = button.dataset.action;
+                const targetId = button.dataset.target;
+                const input = document.getElementById(targetId);
+
+                if (input) {
+                    let value = parseInt(input.value, 10);
+                    const step = parseInt(input.step, 10) || 1;
+                    const min = parseInt(input.min, 10);
+                    const max = parseInt(input.max, 10);
+
+                    if (action === 'plus') { value = Math.min(value + step, max); } 
+                    else if (action === 'minus') { value = Math.max(value - step, min); }
+                    
+                    input.value = value;
+                    if (targetId === 'bet-amount') handleBetChange();
+                }
+            }
+            
+            // --- Event Listeners & Initial Setup ---
             allSelectors.riskButtons.forEach(b => b.addEventListener('click', () => setupBoard(b.dataset.risk)));
             allSelectors.dropButton.addEventListener('click', dropChip);
             allSelectors.autoDropButton.addEventListener('click', startAutoDrop);
             allSelectors.betAmountInput.addEventListener('change', handleBetChange);
+            allSelectors.stepperButtons.forEach(b => b.addEventListener('click', handleStepper));
             window.addEventListener('resize', () => setupBoard(currentRisk));
             
-            initProfile(); setupBoard(currentRisk); updateBalanceUI();
+            initProfile();
+            setupBoard(currentRisk);
+            updateBalanceUI();
         });
     </script>
 </body>
