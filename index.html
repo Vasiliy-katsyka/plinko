@@ -298,9 +298,7 @@
 
                 // Добавляем вызов новой функции requestFullScreen, как вы просили,
                 // с проверкой на случай, если она доступна не во всех версиях Telegram.
-                if (tg.requestFullScreen && typeof tg.requestFullScreen === 'function') {
-                    tg.requestFullScreen();
-                }
+                tg.requestFullscreen();
 
                 applyTelegramTheme(); 
             } catch (e) { 
