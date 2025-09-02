@@ -25,11 +25,11 @@
             --button-primary-bg: linear-gradient(45deg, #a855f7, #6d28d9);
             --button-primary-text-color: #ffffff;
             
-            /* Custom game colors (not from Telegram theme) */
+            /* Custom game colors - these will be overridden by Telegram Theme */
             --peg-color: #a3b8d9;
             --chip-color: #00f5ff;
-            --highlight-primary: #a855f7; /* Vibrant Purple */
-            --highlight-secondary: #00f5ff; /* Bright Cyan */
+            --highlight-primary: #a855f7;
+            --highlight-secondary: #00f5ff;
             --button-secondary-bg: linear-gradient(45deg, #ec4899, #d946ef);
             --stepper-bg: #2c336b;
 
@@ -50,7 +50,7 @@
             display: flex;
             justify-content: center;
             min-height: 100%;
-            padding: 40px 15px calc(var(--nav-height) + 30px); /* Increased top padding */
+            padding: 50px 15px calc(var(--nav-height) + 30px); /* Increased top padding to 50px */
             overflow-y: auto;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -60,28 +60,18 @@
         .view.active { display: flex; }
         header { width: 100%; text-align: center; margin-bottom: 5px; }
         header h1 {
-            font-size: clamp(1.8rem, 7vw, 2.5rem);
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: white;
-            background: linear-gradient(90deg, var(--highlight-secondary), var(--highlight-primary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
-            margin: 0;
+            font-size: clamp(1.8rem, 7vw, 2.5rem); font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+            color: white; background: linear-gradient(90deg, var(--highlight-secondary), var(--highlight-primary));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(168, 85, 247, 0.3); margin: 0;
         }
         #plinko-board-container { position: relative; width: 100%; flex-shrink: 0; }
         #plinko-board {
-            width: 100%;
-            aspect-ratio: 1 / 1;
+            width: 100%; aspect-ratio: 1 / 1;
             background: radial-gradient(circle, var(--surface-color-2) 0%, var(--surface-color) 100%);
-            border-radius: 20px 20px 0 0;
-            position: relative;
-            box-shadow: inset 0 0 25px rgba(0,0,0,0.5);
-            border: 1px solid var(--border-color);
-            border-bottom: none;
-            overflow: hidden;
+            border-radius: 20px 20px 0 0; position: relative;
+            box-shadow: inset 0 0 25px rgba(0,0,0,0.5); border: 1px solid var(--border-color);
+            border-bottom: none; overflow: hidden;
         }
         .peg {
             width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%;
@@ -119,7 +109,6 @@
         .balance-display label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
         .balance-display .value { background: none; border: none; outline: none; color: var(--text-color); font-size: 1.1rem; font-weight: 600; text-align: right; }
         
-        /* Ultra-Compact Controls Layout */
         .controls-grid { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: auto auto; gap: 8px; }
         .stepper-input-group, .risk-selector { background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: center; padding: 4px; height: 48px;}
         .stepper-input-group { padding-left: 10px; }
@@ -127,7 +116,7 @@
         .stepper-input-group input { background: transparent; border: none; color: var(--text-color); font-weight: 600; font-size: 1rem; text-align: center; width: 60px; -moz-appearance: textfield; }
         .stepper-input-group input::-webkit-inner-spin-button, .stepper-input-group input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .stepper-button { background: var(--stepper-bg); border: none; color: var(--text-color); width: 28px; height: 28px; border-radius: 8px; font-size: 1.2rem; line-height: 1; cursor: pointer; transition: background 0.2s; margin: 0 4px; }
-        .stepper-button:hover { background: #3a417a; }
+        .stepper-button:hover { background-color: rgba(255,255,255,0.1); }
         #drop-button { grid-column: 2 / 3; grid-row: 1 / 3; }
         #auto-drop-controls { grid-column: 1 / 2; grid-row: 2 / 3; }
         .risk-selector { padding: 3px; height: 48px; }
@@ -137,9 +126,8 @@
         .main-button {
             padding: 12px; font-size: 1.2rem; font-weight: 700; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color);
             text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.2s ease;
-            display: flex; justify-content: center; align-items: center; height: 100%;
+            display: flex; justify-content: center; align-items: center; height: 100%; background: var(--button-primary-bg);
         }
-        #drop-button { background: var(--button-primary-bg); }
         #auto-drop-button { background: var(--button-secondary-bg); flex-shrink: 0; padding: 0 15px; font-size: 0.9rem; margin-left: auto; height: 36px; border-radius: 8px; }
         
         .main-button:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); filter: brightness(1.1); }
@@ -155,8 +143,8 @@
         .referral-link-container { display: flex; background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; align-items: center; gap: 10px; margin: 10px 0; }
         #referral-link { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
         .copy-button { background: var(--highlight-primary); border: none; border-radius: 8px; color: var(--button-primary-text-color); padding: 8px 12px; cursor: pointer; font-weight: 600; transition: background 0.2s ease; }
-        .copy-button:hover { background: #9333ea; }
-        #profile-avatar { width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--highlight-primary); margin: 0 auto 15px auto; display: block; object-fit: cover; box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+        .copy-button:hover { filter: brightness(1.1); }
+        #profile-avatar { width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--highlight-primary); margin: 0 auto 15px auto; display: block; object-fit: cover; background-color: var(--surface-color-2); box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
         #profile-name { text-align: center; font-size: 1.8rem; font-weight: 700; }
         #profile-username { text-align: center; color: var(--text-muted); font-size: 1rem; margin-bottom: 25px; }
         .section-divider { border-top: 1px solid var(--border-color); padding-top: 20px; margin-top: 20px; }
@@ -205,14 +193,14 @@
                     <h2 id="timer" style="font-size: 2.5rem; color: var(--highlight-secondary); margin-bottom: 5px;">00:00:00</h2>
                     <span style="color: var(--text-muted);">До следующего броска</span>
                 </div>
-                <button id="claim-free-drop-btn" class="main-button" style="background: var(--button-primary-bg);">Забрать бросок</button>
+                <button id="claim-free-drop-btn" class="main-button">Забрать бросок</button>
             </div>
         </div>
 
         <div id="profile-view" class="view">
              <header><h1>Профиль</h1></header>
              <div class="panel">
-                <img id="profile-avatar" src="" alt="Аватар пользователя">
+                <img id="profile-avatar" src='data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%23a855f7"/><stop offset="100%" stop-color="%2300f5ff"/></linearGradient></defs><circle cx="50" cy="50" r="50" fill="url(%23g)"/><text x="50" y="55" font-family="Poppins, sans-serif" font-size="50" font-weight="bold" fill="white" text-anchor="middle">?</text></svg>' alt="Аватар пользователя">
                 <h2 id="profile-name">Тестовый Пользователь</h2>
                 <p id="profile-username">@test_user</p>
                 
@@ -224,8 +212,8 @@
                 <div class="top-up-section" style="margin-top: 5px;">
                     <h3 style="text-align:center; margin-bottom:15px; font-size:1.1rem; color:var(--text-muted);">Пополнить баланс</h3>
                     <div class="button-group" style="display:flex; gap:10px;">
-                        <button id="topup-gifts-btn" class="main-button" style="background: var(--button-secondary-bg); font-size: 1.1rem; padding: 12px; flex:1;">🎁 Подарками</button>
-                        <button id="topup-ton-btn" class="main-button" style="background: var(--button-primary-bg); font-size: 1.1rem; padding: 12px; flex:1;">💎 TON</button>
+                        <button id="topup-gifts-btn" class="main-button" style="background: var(--button-secondary-bg); flex:1;">🎁 Подарками</button>
+                        <button id="topup-ton-btn" class="main-button" style="flex:1;">💎 TON</button>
                     </div>
                 </div>
 
@@ -235,7 +223,7 @@
                         <span id="referral-link">t.me/your_bot_name?start=ref12345</span>
                         <button class="copy-button" id="copy-link-btn">Копировать</button>
                     </div>
-                    <button id="share-link-btn" class="main-button" style="font-size: 1.1rem; padding: 12px; width:100%;">Поделиться</button>
+                    <button id="share-link-btn" class="main-button" style="width:100%;">Поделиться</button>
                 </div>
              </div>
         </div>
@@ -263,28 +251,55 @@
             function applyTelegramTheme() {
                 try {
                     const theme = tg.themeParams;
-                    if (!theme.bg_color) return;
+                    if (!theme || !theme.bg_color) {
+                        console.warn("Telegram theme not available. Using fallback.");
+                        return;
+                    }
+
+                    // Create a lighter shade of a color for gradients
+                    const lightenColor = (hex, percent) => {
+                        hex = hex.replace(/^\s*#|\s*$/g, '');
+                        if(hex.length == 3) hex = hex.replace(/(.)/g, '$1$1');
+                        let r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
+                        const p = percent / 100;
+                        r = Math.min(255, Math.floor(r * (1 + p)));
+                        g = Math.min(255, Math.floor(g * (1 + p)));
+                        b = Math.min(255, Math.floor(b * (1 + p)));
+                        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                    };
+
+                    const buttonColor = theme.button_color || '#a855f7';
+                    const lighterButtonColor = lightenColor(buttonColor, 30);
+                    
                     const styles = `
                         :root {
-                            --bg-color: ${theme.bg_color};
-                            --surface-color: ${theme.secondary_bg_color};
-                            --text-color: ${theme.text_color};
-                            --text-muted: ${theme.hint_color};
-                            --border-color: ${theme.hint_color}33;
-                            --button-primary-bg: ${theme.button_color};
-                            --button-primary-text-color: ${theme.button_text_color};
-                            --stepper-bg: ${theme.bg_color};
+                            --bg-color: ${theme.bg_color} !important;
+                            --surface-color: ${theme.secondary_bg_color} !important;
+                            --text-color: ${theme.text_color} !important;
+                            --text-muted: ${theme.hint_color} !important;
+                            --border-color: ${theme.hint_color}33 !important;
+                            --button-primary-bg: linear-gradient(45deg, ${lighterButtonColor}, ${buttonColor}) !important;
+                            --button-primary-text-color: ${theme.button_text_color} !important;
+                            --stepper-bg: ${theme.bg_color} !important;
+                            
+                            /* Link game accents to TG theme for full integration */
+                            --highlight-primary: ${theme.button_color} !important;
+                            --button-secondary-bg: linear-gradient(45deg, ${lightenColor(theme.secondary_bg_color, 40)}, ${lightenColor(theme.secondary_bg_color, 20)}) !important;
                         }
-                        #bottom-nav { background-color: ${theme.secondary_bg_color}cc; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-                        .main-button { color: ${theme.button_text_color}; }
-                        #share-link-btn { background: ${theme.button_color}; }
+                        #bottom-nav { background-color: ${theme.secondary_bg_color}cc !important; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
                     `;
                     document.getElementById('telegram-theme-styles').innerHTML = styles;
-                } catch (e) { console.warn("Could not apply Telegram theme.", e); }
+                } catch (e) { console.error("Could not apply Telegram theme.", e); }
             }
-
-            try { tg.ready(); tg.expand(); applyTelegramTheme(); } 
-            catch (e) { console.error("Telegram WebApp script not found or failed.", e); }
+            
+            try { 
+                tg.ready(); 
+                // This is the correct Telegram function to expand the web app to fullscreen.
+                tg.expand();
+                applyTelegramTheme(); 
+            } catch (e) { 
+                console.error("Telegram WebApp script not found or failed.", e); 
+            }
 
             // --- Selectors ---
             const allSelectors = {
@@ -295,16 +310,16 @@
                 navButtons: document.querySelectorAll('.nav-button'), views: document.querySelectorAll('.view'), copyLinkBtn: document.getElementById('copy-link-btn'),
                 shareLinkBtn: document.getElementById('share-link-btn'), referralLinkElement: document.getElementById('referral-link'),
                 claimFreeDropBtn: document.getElementById('claim-free-drop-btn'), timerElement: document.getElementById('timer'),
-                stepperButtons: document.querySelectorAll('.stepper-button'),
+                stepperButtons: document.querySelectorAll('.stepper-button'), profileAvatar: document.getElementById('profile-avatar'),
             };
             
             // --- State ---
             let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
-            // RTP ~50% Multipliers
+            // RTP ~90-95% Multipliers for better chances
             const riskLevelConfigs = {
-                low:    { rows: 8,  cols: 10, multipliers: [1, 0.8, 0.6, 0.4, 0.2, 0.2, 0.4, 0.6, 0.8, 1] },
-                medium: { rows: 12, cols: 14, multipliers: [5, 1.5, 0.5, 0.3, 0.2, 0.1, 0.1, 0.2, 0.3, 0.5, 1.5, 5] },
-                high:   { rows: 16, cols: 18, multipliers: [15, 5, 1, 0.2, 0.1, 0, 0, 0, 0, 0, 0.1, 0.2, 1, 5, 15] }
+                low:    { rows: 8,  cols: 10, multipliers: [5, 2, 1.5, 1.1, 0.8, 0.8, 1.1, 1.5, 2, 5] },
+                medium: { rows: 12, cols: 14, multipliers: [20, 5, 2, 1, 0.5, 0.4, 0.4, 0.5, 1, 2, 5, 20] },
+                high:   { rows: 16, cols: 18, multipliers: [250, 25, 5, 1.5, 0.5, 0.2, 0.1, 0, 0.1, 0.2, 0.5, 1.5, 5, 25, 250] }
             };
             let GRAVITY = 0.25, DAMPING = 0.55;
             let balance = 2000.00, currentRisk = 'medium', isDropping = false, isAutoDropping = false, autoDropInterval = null, pegs = [], activeChips = [];
@@ -312,30 +327,31 @@
             const FREE_DROP_INTERVAL = 24 * 60 * 60 * 1000, FREE_DROP_BASE_BET = 1.00;
             let freeDropTimerInterval = null;
             
-            function generateAvatar(name) {
-                const canvas = document.createElement('canvas'); const size = 128; canvas.width = size; canvas.height = size;
-                const ctx = canvas.getContext('2d');
-                const gradient = ctx.createLinearGradient(0, 0, size, size); gradient.addColorStop(0, '#a855f7'); gradient.addColorStop(1, '#00f5ff');
-                ctx.fillStyle = gradient; ctx.fillRect(0, 0, size, size);
-                const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-                ctx.fillStyle = 'white'; ctx.font = `bold ${size / 2.5}px Poppins`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(initials, size / 2, size / 2);
-                return canvas.toDataURL();
-            }
-
             function initProfile() {
-                const profileAvatar = document.getElementById('profile-avatar'), profileName = document.getElementById('profile-name'), profileUsername = document.getElementById('profile-username');
+                const profileName = document.getElementById('profile-name'), profileUsername = document.getElementById('profile-username');
                 let user = null;
                 try { user = tg.initDataUnsafe?.user; } catch (e) { /* ignore */ }
+                
                 if (user && user.id) {
                     const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
-                    profileName.textContent = name; profileUsername.textContent = user.username ? `@${user.username}` : `ID: ${user.id}`;
+                    profileName.textContent = name;
+                    profileUsername.textContent = user.username ? `@${user.username}` : `ID: ${user.id}`;
                     allSelectors.referralLinkElement.textContent = `t.me/your_bot_name?start=ref${user.id}`;
-                    profileAvatar.src = generateAvatar(name);
+                    
+                    // --- REAL TELEGRAM AVATAR LOGIC ---
+                    // To get the real avatar, you need a backend. The process is:
+                    // 1. Send the user.id from here to your server.
+                    // 2. Your server uses the bot token to call the Telegram API method `getUserProfilePhotos` with the user_id.
+                    // 3. Get the `file_id` of the first photo.
+                    // 4. Use the bot token to call `getFile` with the `file_id` to get a `file_path`.
+                    // 5. Construct the full URL: `https://api.telegram.org/file/bot<YOUR_TOKEN>/${file_path}`
+                    // 6. Send this URL back to the Web App.
+                    // 7. Uncomment and use the line below:
+                    // allSelectors.profileAvatar.src = 'URL_FROM_YOUR_BACKEND';
+                    
                 } else {
-                    const mockName = "Тестовый Пользователь";
-                    profileName.textContent = mockName; profileUsername.textContent = "@test_user";
-                    profileAvatar.src = generateAvatar(mockName);
+                    profileName.textContent = "Тестовый Пользователь";
+                    profileUsername.textContent = "@test_user";
                 }
             }
             
@@ -374,15 +390,12 @@
             function handleClaimFreeDrop() {
                 if (isDropping) return;
                 localStorage.setItem('lastFreeDropClaim', Date.now().toString()); initFreeTryView(); switchView('main-game-view');
-                setTimeout(() => {
-                    setupBoard('low');
-                    setTimeout(() => performDrop(0, FREE_DROP_BASE_BET), 50);
-                }, 100);
+                setTimeout(() => { setupBoard('low'); setTimeout(() => performDrop(0, FREE_DROP_BASE_BET), 50); }, 100);
             }
             allSelectors.claimFreeDropBtn.addEventListener('click', handleClaimFreeDrop);
             
             function getSlotColor(m) {
-                if (m >= 5) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)'; if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)';
+                if (m >= 20) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)'; if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)';
             }
             function setupBoard(risk) {
                 if (isDropping) return; currentRisk = risk; BOARD_WIDTH = allSelectors.board.clientWidth; if (BOARD_WIDTH === 0) return;
@@ -420,7 +433,6 @@
                 allSelectors.stepperButtons.forEach(btn => btn.disabled = disabled);
                 allSelectors.betAmountInput.disabled = disabled;
                 allSelectors.autoDropCountInput.disabled = disabled;
-                // Allow stopping auto drop even when controls are disabled
                 if (!disabled) { allSelectors.autoDropButton.disabled = false; }
             }
             
@@ -465,7 +477,7 @@
                 balance += winnings;
                 const targetSlot = document.querySelectorAll('.slot')[slotIndex];
                 targetSlot.classList.remove('highlight'); void targetSlot.offsetWidth; targetSlot.classList.add('highlight');
-                try { if (multiplier >= 5) tg.HapticFeedback.notificationOccurred('success'); else if (multiplier >= 1) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+                try { if (multiplier >= 10) tg.HapticFeedback.notificationOccurred('success'); else if (multiplier >= 1) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
                 updateBalanceUI();
             }
             
@@ -509,8 +521,8 @@
                 const input = document.getElementById(targetId);
 
                 if (input) {
-                    let value = parseInt(input.value, 10);
-                    const step = parseInt(input.step, 10) || 1;
+                    let value = parseInt(input.value, 10) || 0;
+                    const step = (targetId === 'bet-amount' && value >= 100) ? 10 : 1;
                     const min = parseInt(input.min, 10);
                     const max = parseInt(input.max, 10);
 
