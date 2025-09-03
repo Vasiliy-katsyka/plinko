@@ -10,71 +10,36 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     
-    <!-- Telegram Theme Styles will be injected here by JavaScript -->
     <style id="telegram-theme-styles"></style>
 
     <style>
         :root {
-            /* Fallback colors */
-            --bg-color: #0d0f1a;
-            --surface-color: #1a1e3a;
-            --surface-color-2: #252a4a;
-            --border-color: rgba(255, 255, 255, 0.1);
-            --text-color: #e2e8f0;
-            --text-muted: #8a99b5;
-            --button-primary-bg: linear-gradient(45deg, #a855f7, #6d28d9);
-            --button-primary-text-color: #ffffff;
-            --peg-color: #a3b8d9;
-            --chip-color: #00f5ff;
-            --highlight-primary: #a855f7;
-            --highlight-secondary: #00f5ff;
-            --button-secondary-bg: linear-gradient(45deg, #ec4899, #d946ef);
-            --stepper-bg: #2c336b;
-            --slot-high: #8e44ad;
-            --slot-mid: #5a57c4;
-            --slot-low: #3d4a99;
-            --slot-zero: #2c336b;
-            --nav-height: 70px;
+            --bg-color: #0d0f1a; --surface-color: #1a1e3a; --surface-color-2: #252a4a;
+            --border-color: rgba(255, 255, 255, 0.1); --text-color: #e2e8f0; --text-muted: #8a99b5;
+            --button-primary-bg: linear-gradient(45deg, #a855f7, #6d28d9); --button-primary-text-color: #ffffff;
+            --peg-color: #a3b8d9; --chip-color: #00f5ff; --highlight-primary: #a855f7; --highlight-secondary: #00f5ff;
+            --button-secondary-bg: linear-gradient(45deg, #ec4899, #d946ef); --stepper-bg: #2c336b;
+            --slot-high: #8e44ad; --slot-mid: #5a57c4; --slot-low: #3d4a99; --slot-zero: #2c336b; --nav-height: 70px;
         }
-
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         html { height: 100%; }
         body {
-            font-family: 'Poppins', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            justify-content: center;
-            min-height: 100%;
-            padding: 15px 15px calc(var(--nav-height) + 30px);
-            overflow-y: auto;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
+            font-family: 'Poppins', sans-serif; background-color: var(--bg-color); color: var(--text-color);
+            display: flex; justify-content: center; min-height: 100%;
+            padding: 90px 15px calc(var(--nav-height) + 30px); overflow-y: auto;
+            -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
         }
         #app-container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
         .view { display: none; flex-direction: column; align-items: center; width: 100%; gap: 15px; }
         .view.active { display: flex; }
-        
-        header {
-            width: 100%;
-            text-align: center;
-            margin-bottom: 5px;
-        }
+        header { width: 100%; text-align: center; margin-bottom: 5px; }
         header h1 {
-            font-size: clamp(1.8rem, 7vw, 2.5rem);
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: white;
-            background: linear-gradient(90deg, var(--highlight-secondary), var(--highlight-primary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
-            margin: 0;
+            font-size: clamp(1.8rem, 7vw, 2.5rem); font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+            color: white; background: linear-gradient(90deg, var(--highlight-secondary), var(--highlight-primary));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(168, 85, 247, 0.3); margin: 0;
         }
-        
         .game-board-area { width: 100%; }
-        
         #plinko-board-container { position: relative; width: 100%; flex-shrink: 0; }
         #plinko-board {
             width: 100%; aspect-ratio: 1 / 1;
@@ -83,397 +48,451 @@
             box-shadow: inset 0 0 25px rgba(0,0,0,0.5); border: 1px solid var(--border-color);
             border-bottom: none; overflow: hidden;
         }
-        .peg {
-            width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%;
-            position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3);
-            transform: translate(-50%, -50%);
-        }
-        .chip {
-            position: absolute; background-color: var(--chip-color); border-radius: 50%;
-            filter: drop-shadow(0 0 8px var(--chip-color)) drop-shadow(0 0 15px var(--chip-color));
-            visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s;
-        }
-        #slots-container {
-            display: flex; width: 100%; border-radius: 0 0 20px 20px;
-            overflow: hidden; border: 1px solid var(--border-color); border-top: none;
-        }
-        .slot {
-            flex-grow: 1; height: 45px; display: flex; justify-content: center; align-items: center;
-            font-weight: 600; font-size: clamp(0.6rem, 2.5vw, 0.8rem); color: white; transition: all 0.3s ease;
-        }
-        
-        @keyframes highlight-win {
-            0% { transform: scale(1); filter: brightness(1); }
-            50% { transform: scale(1.1); filter: brightness(2) drop-shadow(0 0 15px var(--highlight-secondary)); }
-            100% { transform: scale(1); filter: brightness(1); }
-        }
+        .peg { width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%; position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3); transform: translate(-50%, -50%); }
+        .chip { position: absolute; background-color: var(--chip-color); border-radius: 50%; filter: drop-shadow(0 0 8px var(--chip-color)) drop-shadow(0 0 15px var(--chip-color)); visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s; }
+        #slots-container { display: flex; width: 100%; border-radius: 0 0 20px 20px; overflow: hidden; border: 1px solid var(--border-color); border-top: none; }
+        .slot { flex-grow: 1; height: 45px; display: flex; justify-content: center; align-items: center; font-weight: 600; font-size: clamp(0.6rem, 2.5vw, 0.8rem); color: white; transition: all 0.3s ease; }
+        @keyframes highlight-win { 0% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.1); filter: brightness(2) drop-shadow(0 0 15px var(--highlight-secondary)); } 100% { transform: scale(1); filter: brightness(1); } }
         .slot.highlight { animation: highlight-win 0.6s ease-out; z-index: 10; }
-        
-        .panel {
-            background-color: var(--surface-color); padding: 12px; border-radius: 20px;
-            width: 100%; display: flex; flex-direction: column; gap: 10px;
-            border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-        .balance-display {
-            display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-color);
-            border: 1px solid var(--border-color); border-radius: 12px; padding: 8px 15px;
-        }
+        .panel { background-color: var(--surface-color); padding: 12px; border-radius: 20px; width: 100%; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .balance-display { display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px 15px; }
         .balance-display label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
         .balance-display .value { background: none; border: none; outline: none; color: var(--text-color); font-size: 1.1rem; font-weight: 600; text-align: right; }
-        
-        /* FIXED: Correct grid layout for all controls */
-        .controls-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr; /* 2 parts for controls, 1 for drop button */
-            grid-template-rows: auto auto auto; /* THREE rows for controls */
-            gap: 8px;
-        }
-        .stepper-input-group, .risk-selector {
-            background-color: var(--bg-color); border: 1px solid var(--border-color);
-            border-radius: 12px; display: flex; align-items: center; padding: 4px;
-            height: 48px;
-        }
-        .stepper-input-group { padding-left: 10px; }
-        .stepper-input-group label { font-size: 0.8rem; color: var(--text-muted); margin-right: auto;}
+        .collapsible-header { background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 600; user-select: none; }
+        .collapsible-header .setting-value { color: var(--text-color); } .collapsible-header .setting-label { color: var(--text-muted); }
+        .toggle-icon { transition: transform 0.3s ease; } .toggle-icon.open { transform: rotate(180deg); }
+        .collapsible-content { max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out; display: flex; flex-direction: column; gap: 8px; }
+        .collapsible-content.open { max-height: 300px; margin-top: 5px; }
+        .stepper-input-group, .risk-selector { background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: center; padding: 4px; height: 48px; }
+        .stepper-input-group { padding-left: 15px; } .stepper-input-group label { font-size: 0.9rem; color: var(--text-muted); margin-right: auto;}
         .stepper-input-group input { background: transparent; border: none; color: var(--text-color); font-weight: 600; font-size: 1rem; text-align: center; width: 60px; -moz-appearance: textfield; }
         .stepper-input-group input::-webkit-inner-spin-button, .stepper-input-group input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        .stepper-button { background: var(--stepper-bg); border: none; color: var(--text-color); width: 28px; height: 28px; border-radius: 8px; font-size: 1.2rem; line-height: 1; cursor: pointer; transition: background 0.2s; margin: 0 4px; }
-        .stepper-button:hover { background-color: rgba(255,255,255,0.1); }
-        
-        #drop-button {
-            grid-column: 2 / 3; /* Place in the second column */
-            grid-row: 1 / 4;    /* Span across all THREE rows */
-            font-size: 1.2rem;
-        }
-        .risk-selector {
-            padding: 3px;
-            height: 48px;
-        }
-        .risk-button { flex-grow: 1; padding: 8px 5px; border: none; background: none; border-radius: 9px; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.3s ease; }
+        .stepper-button { background: var(--stepper-bg); border: none; color: var(--text-color); width: 32px; height: 32px; border-radius: 8px; font-size: 1.4rem; line-height: 1; cursor: pointer; transition: background 0.2s; margin: 0 4px; }
+        .risk-selector { padding: 3px; height: 48px; }
+        .risk-button { flex-grow: 1; padding: 8px 5px; border: none; background: none; border-radius: 9px; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s ease; }
         .risk-button.active { background-color: var(--highlight-primary); color: white; }
-        
-        .main-button {
-            padding: 15px 12px; font-weight: 700; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color);
-            text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.2s ease;
-            display: flex; justify-content: center; align-items: center; background: var(--button-primary-bg);
-        }
-        #auto-drop-button { background: var(--button-secondary-bg); flex-shrink: 0; padding: 0 15px; font-size: 0.9rem; margin-left: auto; height: 36px; border-radius: 8px; }
-        
+        .main-button { width: 100%; padding: 18px 15px; font-weight: 700; font-size: 1.2rem; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color); text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.2s ease; display: flex; justify-content: center; align-items: center; background: var(--button-primary-bg); }
+        #auto-drop-button { background: var(--button-secondary-bg); flex-shrink: 0; padding: 0 20px; font-size: 0.9rem; margin-left: auto; height: 40px; border-radius: 8px; }
         .main-button:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); filter: brightness(1.1); }
         .main-button:active:not(:disabled) { transform: translateY(-1px); }
         .main-button:disabled { background: #4a5568 !important; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
-        
         #bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 500px; height: var(--nav-height); background-color: var(--surface-color); display: flex; justify-content: space-around; align-items: center; box-shadow: 0 -5px 30px rgba(0,0,0,0.3); border-top: 1px solid var(--border-color); z-index: 100; }
         .nav-button { background: none; border: none; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-size: 0.7rem; font-weight: 600; cursor: pointer; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0.7; transition: all 0.3s ease; position: relative; }
         .nav-button.active { color: var(--highlight-primary); opacity: 1; transform: translateY(-3px); }
         .nav-button.active::after { content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; border-radius: 50%; background-color: var(--highlight-primary); }
         .nav-button svg { width: 24px; height: 24px; fill: currentColor; }
-        .info-text { text-align: center; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
-        .referral-link-container { display: flex; background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; align-items: center; gap: 10px; margin: 10px 0; }
-        #referral-link { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
-        .copy-button { background: var(--highlight-primary); border: none; border-radius: 8px; color: var(--button-primary-text-color); padding: 8px 12px; cursor: pointer; font-weight: 600; transition: background 0.2s ease; }
-        .copy-button:hover { filter: brightness(1.1); }
-        #profile-avatar { width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--highlight-primary); margin: 0 auto 15px auto; display: block; object-fit: cover; background-color: var(--surface-color-2); box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+        /* Profile page specific styles */
+        #profile-avatar { width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--highlight-primary); margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 700; object-fit: cover; background-color: var(--surface-color-2); box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
         #profile-name { text-align: center; font-size: 1.8rem; font-weight: 700; }
         #profile-username { text-align: center; color: var(--text-muted); font-size: 1rem; margin-bottom: 25px; }
-        .section-divider { border-top: 1px solid var(--border-color); padding-top: 20px; margin-top: 20px; }
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(10,10,20,0.7); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; }
+        .modal-content { background-color: var(--surface-color); padding: 20px; border-radius: 16px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); border: 1px solid var(--border-color); }
+        .modal-content h3 { margin-top: 0; }
+        .modal-body { margin: 15px 0; } .modal-actions { display: flex; gap: 10px; } .modal-actions .button { flex-grow: 1; }
+        #deposit-ton-modal input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); margin-bottom: 10px; text-align: center; }
+        #deposit-ton-modal .loader { border: 4px solid var(--surface-hover-color); border-top: 4px solid var(--primary-color); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 15px auto; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-
     <div id="app-container">
-        
+        <!-- Main Game View -->
         <div id="main-game-view" class="view active">
             <header><h1>Plinko</h1></header>
             <div class="game-board-area">
-                <div id="plinko-board-container">
-                    <div id="plinko-board"></div>
-                </div>
+                <div id="plinko-board-container"><div id="plinko-board"></div></div>
                 <div id="slots-container"></div>
             </div>
             <div class="panel">
-                <div class="balance-display">
-                    <label>Баланс</label>
-                    <div id="balance" class="value">$2000.00</div>
+                <div class="balance-display"><label>Баланс</label><div id="balance" class="value">$2000.00</div></div>
+                <div id="settings-panel">
+                    <div class="collapsible-header" id="collapsible-header">
+                        <div><span class="setting-label">Ставка: </span><span class="setting-value" id="header-bet-value">$10</span><span class="setting-label" style="margin-left: 15px;">Риск: </span><span class="setting-value" id="header-risk-value">Средний</span></div>
+                        <svg class="toggle-icon" id="toggle-icon" width="24" height="24" viewBox="0 0 24 24"><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="collapsible-content" id="collapsible-content">
+                        <div class="stepper-input-group"><label>Ставка</label><button class="stepper-button" data-action="minus" data-target="bet-amount">-</button><input type="number" id="bet-amount" value="10" min="1" step="1"><button class="stepper-button" data-action="plus" data-target="bet-amount">+</button></div>
+                        <div class="stepper-input-group"><label>Авто</label><button class="stepper-button" data-action="minus" data-target="auto-drop-count">-</button><input type="number" id="auto-drop-count" value="10" min="1" max="100"><button class="stepper-button" data-action="plus" data-target="auto-drop-count">+</button><button id="auto-drop-button" class="main-button">Старт</button></div>
+                        <div class="risk-selector"><button class="risk-button" data-risk="low">Низкий</button><button class="risk-button active" data-risk="medium">Средний</button><button class="risk-button" data-risk="high">Высокий</button></div>
+                    </div>
                 </div>
-                <div class="controls-grid">
-                    <!-- FIXED: Correct order and placement of controls -->
-                    <div class="stepper-input-group" id="bet-amount-controls">
-                        <label>Ставка</label>
-                        <button class="stepper-button" data-action="minus" data-target="bet-amount">-</button>
-                        <input type="number" id="bet-amount" value="10" min="1" step="1">
-                        <button class="stepper-button" data-action="plus" data-target="bet-amount">+</button>
-                    </div>
-                    
-                    <div class="stepper-input-group" id="auto-drop-controls">
-                        <label>Авто</label>
-                        <button class="stepper-button" data-action="minus" data-target="auto-drop-count">-</button>
-                        <input type="number" id="auto-drop-count" value="10" min="1" max="100">
-                        <button class="stepper-button" data-action="plus" data-target="auto-drop-count">+</button>
-                        <button id="auto-drop-button" class="main-button">Старт</button>
-                    </div>
-
-                    <div class="risk-selector">
-                        <button class="risk-button" data-risk="low">Низкий</button>
-                        <button class="risk-button active" data-risk="medium">Средний</button>
-                        <button class="risk-button" data-risk="high">Высокий</button>
-                    </div>
-
-                    <button id="drop-button" class="main-button">Бросить</button>
-                </div>
+                <button id="drop-button" class="main-button">Бросить</button>
             </div>
         </div>
-
-        <div id="free-try-view" class="view">
-            <header><h1>Free Try</h1></header>
-            <div class="panel">
-                <p class="info-text">Получайте бесплатный бросок каждые 24 часа!</p>
-                <div id="timer-container" style="text-align:center; margin: 20px 0;">
-                    <h2 id="timer" style="font-size: 2.5rem; color: var(--highlight-secondary); margin-bottom: 5px;">00:00:00</h2>
-                    <span style="color: var(--text-muted);">До следующего броска</span>
-                </div>
-                <button id="claim-free-drop-btn" class="main-button">Забрать бросок</button>
-            </div>
-        </div>
-
+        <!-- Profile View -->
         <div id="profile-view" class="view">
-             <header><h1>Профиль</h1></header>
-             <div class="panel">
-                <img id="profile-avatar" src='data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%23a855f7"/><stop offset="100%" stop-color="%2300f5ff"/></linearGradient></defs><circle cx="50" cy="50" r="50" fill="url(%23g)"/><text x="50" y="55" font-family="Poppins, sans-serif" font-size="50" font-weight="bold" fill="white" text-anchor="middle">?</text></svg>' alt="Аватар пользователя">
-                <h2 id="profile-name">Тестовый Пользователь</h2>
-                <p id="profile-username">@test_user</p>
-                
-                <div class="balance-display" style="padding: 12px 15px;">
-                    <label>Баланс</label>
-                    <div id="profile-balance" class="value">$2000.00</div>
+            <header><h1>Профиль</h1></header>
+            <div class="panel">
+                <div id="profile-avatar">?</div>
+                <h2 id="profile-name">Пользователь</h2><p id="profile-username">@username</p>
+                <div class="balance-display"><label>Баланс</label><div id="profile-balance" class="value">$2000.00</div></div>
+                <h3 style="text-align:center; margin:15px 0 10px; font-size:1.1rem; color:var(--text-muted);">Пополнить баланс</h3>
+                <div style="display:flex; gap:10px; flex-direction: column;">
+                    <input type="number" id="deposit-amount-input" placeholder="Сумма (TON или Stars)" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); text-align: center; font-size: 1.1rem;">
+                    <button id="topup-ton-btn" class="main-button">💎 TON</button>
+                    <button id="topup-stars-btn" class="main-button" style="background: var(--button-secondary-bg);">⭐ Stars</button>
                 </div>
+            </div>
+        </div>
+    </div>
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav">
+        <button class="nav-button active" data-view="main-game-view"><svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" /></svg><span>Игра</span></button>
+        <button class="nav-button" data-view="profile-view"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Профиль</span></button>
+    </nav>
 
-                <div class="top-up-section" style="margin-top: 5px;">
-                    <h3 style="text-align:center; margin-bottom:15px; font-size:1.1rem; color:var(--text-muted);">Пополнить баланс</h3>
-                    <div class="button-group" style="display:flex; gap:10px;">
-                        <button id="topup-gifts-btn" class="main-button" style="background: var(--button-secondary-bg); flex:1; font-size: 1.1rem;">🎁 Подарками</button>
-                        <button id="topup-ton-btn" class="main-button" style="flex:1; font-size: 1.1rem;">💎 TON</button>
-                    </div>
+    <!-- TON Deposit Modal -->
+    <div id="deposit-ton-modal" class="modal">
+        <div class="modal-content">
+            <h3>Депозит TON</h3>
+            <div class="modal-body" style="text-align: center;">
+                <p>Отправьте любую сумму TON на адрес ниже, **обязательно** указав этот уникальный комментарий:</p>
+                <div style="margin: 10px 0;">
+                    <strong>Адрес:</strong><br>
+                    <input type="text" id="ton-deposit-address" readonly>
                 </div>
-
-                <div class="section-divider">
-                     <h3 style="text-align:center; margin-bottom:15px; font-size:1.1rem; color:var(--text-muted);">Пригласить друзей</h3>
-                     <div class="referral-link-container">
-                        <span id="referral-link">t.me/your_bot_name?start=ref12345</span>
-                        <button class="copy-button" id="copy-link-btn">Копировать</button>
-                    </div>
-                    <button id="share-link-btn" class="main-button" style="width:100%; font-size: 1.1rem;">Поделиться</button>
+                <div style="margin: 10px 0;">
+                    <strong>Комментарий:</strong><br>
+                    <input type="text" id="ton-deposit-comment" readonly>
                 </div>
-             </div>
+                <div id="ton-deposit-loader" class="loader" style="display:none;"></div>
+                <p id="ton-deposit-status"></p>
+            </div>
+            <div class="modal-actions">
+                <button id="verify-ton-deposit-btn" class="main-button">Я оплатил</button>
+                <button id="close-ton-deposit-modal-btn" class="main-button" style="background: var(--stepper-bg);">Отмена</button>
+            </div>
         </div>
     </div>
 
-    <nav id="bottom-nav">
-        <button class="nav-button" data-view="free-try-view">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20,6H18.18C18.09,5.69 18,5.35 18,5A3,3 0 0,0 15,2C13.95,2 13.04,2.54 12.5,3.35C11.96,2.54 11.05,2 10,2A3,3 0 0,0 7,5C7,5.35 7.09,5.69 7.18,6H4A2,2 0 0,0 2,8V19A2,2 0 0,0 4,21H20A2,2 0 0,0 22,19V8A2,2 0 0,0 20,6M15,4A1,1 0 0,1 16,5A1,1 0 0,1 15,6A1,1 0 0,1 14,5A1,1 0 0,1 15,4M10,4A1,1 0 0,1 11,5A1,1 0 0,1 10,6A1,1 0 0,1 9,5A1,1 0 0,1 10,4M20,19H4V8H20V19Z" fill="currentColor"/></svg>
-            <span>Free Try</span>
-        </button>
-        <button class="nav-button active" data-view="main-game-view">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" /></svg>
-            <span>Игра</span>
-        </button>
-        <button class="nav-button" data-view="profile-view">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-            <span>Профиль</span>
-        </button>
-    </nav>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const tg = window.Telegram.WebApp;
+    const API_BASE_URL = 'https://plinko-rj2a.onrender.com'; // Ваша ссылка на Render
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const tg = window.Telegram.WebApp;
-            
-            function applyTelegramTheme() {
-                try {
-                    const theme = tg.themeParams;
-                    if (!theme || !theme.bg_color) { console.warn("Telegram theme not available."); return; }
-                    const lightenColor = (hex, percent) => {
-                        hex = hex.replace(/^\s*#|\s*$/g, '');
-                        if(hex.length == 3) hex = hex.replace(/(.)/g, '$1$1');
-                        let r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
-                        const p = percent / 100;
-                        r = Math.min(255, Math.floor(r * (1 + p))); g = Math.min(255, Math.floor(g * (1 + p))); b = Math.min(255, Math.floor(b * (1 + p)));
-                        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-                    };
-                    const buttonColor = theme.button_color || '#a855f7';
-                    const lighterButtonColor = lightenColor(buttonColor, 30);
-                    const styles = `
-                        :root {
-                            --bg-color: ${theme.bg_color} !important; --surface-color: ${theme.secondary_bg_color} !important; --text-color: ${theme.text_color} !important; --text-muted: ${theme.hint_color} !important;
-                            --border-color: ${theme.hint_color}33 !important; --button-primary-bg: linear-gradient(45deg, ${lighterButtonColor}, ${buttonColor}) !important; --button-primary-text-color: ${theme.button_text_color} !important;
-                            --stepper-bg: ${theme.bg_color} !important; --highlight-primary: ${theme.button_color} !important; --button-secondary-bg: linear-gradient(45deg, ${lightenColor(theme.secondary_bg_color, 40)}, ${lightenColor(theme.secondary_bg_color, 20)}) !important;
-                        }
-                        #bottom-nav { background-color: ${theme.secondary_bg_color}cc !important; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-                    `;
-                    document.getElementById('telegram-theme-styles').innerHTML = styles;
-                } catch (e) { console.error("Could not apply Telegram theme.", e); }
+    // Global state
+    let currentUser = { id: null, balance: 0.00 };
+    let currentRisk = 'medium';
+    let isDropping = false;
+    let isAutoDropping = false;
+    let autoDropInterval = null;
+    let activeChips = [];
+    let chipIdCounter = 0;
+    let pegs = [];
+    let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
+    let GRAVITY = 0.25, DAMPING = 0.55;
+    
+    // Plinko game configs (front-end only for display)
+    const riskLevelConfigs = {
+        low:    { rows: 8,  cols: 10, multipliers: [5, 2, 1.5, 1.1, 1, 1, 1.1, 1.5, 2, 5], name: "Низкий" },
+        medium: { rows: 12, cols: 14, multipliers: [20, 5, 2, 1.2, 0.5, 0.4, 0.4, 0.5, 1.2, 2, 5, 20], name: "Средний" },
+        high:   { rows: 16, cols: 18, multipliers: [250, 25, 5, 1.5, 0.5, 0.2, 0.1, 0, 0.1, 0.2, 0.5, 1.5, 5, 25, 250], name: "Высокий" }
+    };
+    
+    // --- Element Selectors ---
+    const selectors = {
+        views: document.querySelectorAll('.view'),
+        navButtons: document.querySelectorAll('.nav-button'),
+        balance: document.getElementById('balance'),
+        profileBalance: document.getElementById('profile-balance'),
+        profileName: document.getElementById('profile-name'),
+        profileUsername: document.getElementById('profile-username'),
+        profileAvatar: document.getElementById('profile-avatar'),
+        board: document.getElementById('plinko-board'),
+        slotsContainer: document.getElementById('slots-container'),
+        dropButton: document.getElementById('drop-button'),
+        betAmountInput: document.getElementById('bet-amount'),
+        riskButtons: document.querySelectorAll('.risk-button'),
+        autoDropButton: document.getElementById('auto-drop-button'),
+        autoDropCountInput: document.getElementById('auto-drop-count'),
+        collapsibleHeader: document.getElementById('collapsible-header'),
+        collapsibleContent: document.getElementById('collapsible-content'),
+        toggleIcon: document.getElementById('toggle-icon'),
+        headerBetValue: document.getElementById('header-bet-value'),
+        headerRiskValue: document.getElementById('header-risk-value'),
+        stepperButtons: document.querySelectorAll('.stepper-button'),
+        topUpTonBtn: document.getElementById('topup-ton-btn'),
+        topUpStarsBtn: document.getElementById('topup-stars-btn'),
+        depositAmountInput: document.getElementById('deposit-amount-input'),
+        depositTonModal: document.getElementById('deposit-ton-modal'),
+        tonDepositAddress: document.getElementById('ton-deposit-address'),
+        tonDepositComment: document.getElementById('ton-deposit-comment'),
+        verifyTonDepositBtn: document.getElementById('verify-ton-deposit-btn'),
+        closeTonDepositModalBtn: document.getElementById('close-ton-deposit-modal-btn'),
+        tonDepositLoader: document.getElementById('ton-deposit-loader'),
+        tonDepositStatus: document.getElementById('ton-deposit-status'),
+    };
+    
+    // --- Core Functions ---
+    async function apiRequest(endpoint, method = 'POST', body = {}) {
+        const headers = { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData };
+        try {
+            const response = await fetch(API_BASE_URL + endpoint, { method, headers, body: JSON.stringify(body) });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error ${response.status}`);
             }
-            
-            try { 
-                tg.ready();
-                tg.expand();
-                if (tg.requestFullscreen && typeof tg.requestFullscreen === 'function') {
-                    tg.requestFullscreen();
-                }
-                applyTelegramTheme(); 
-            } catch (e) { console.error("Telegram WebApp script not found or failed.", e); }
+            return response.json();
+        } catch (error) {
+            tg.showAlert(error.message);
+            throw error;
+        }
+    }
 
-            const allSelectors = {
-                board: document.getElementById('plinko-board'), slotsContainer: document.getElementById('slots-container'), dropButton: document.getElementById('drop-button'), autoDropButton: document.getElementById('auto-drop-button'),
-                balanceElement: document.getElementById('balance'), profileBalanceElement: document.getElementById('profile-balance'), betAmountInput: document.getElementById('bet-amount'), riskButtons: document.querySelectorAll('.risk-button'),
-                autoDropCountInput: document.getElementById('auto-drop-count'), navButtons: document.querySelectorAll('.nav-button'), views: document.querySelectorAll('.view'), copyLinkBtn: document.getElementById('copy-link-btn'),
-                shareLinkBtn: document.getElementById('share-link-btn'), referralLinkElement: document.getElementById('referral-link'), claimFreeDropBtn: document.getElementById('claim-free-drop-btn'),
-                timerElement: document.getElementById('timer'), stepperButtons: document.querySelectorAll('.stepper-button'), profileAvatar: document.getElementById('profile-avatar'),
+    async function initializeApp() {
+        tg.ready();
+        tg.expand();
+        try {
+            const userData = await apiRequest('/api/user_data');
+            currentUser = userData;
+            updateBalanceUI();
+            updateProfileUI();
+        } catch (error) {
+            tg.showAlert("Не удалось загрузить данные пользователя.");
+        }
+        setupBoard(currentRisk);
+        updateHeaderValues();
+    }
+
+    // --- UI Update Functions ---
+    function updateBalanceUI() {
+        const formattedBalance = `$${currentUser.balance.toFixed(2)}`;
+        selectors.balance.textContent = formattedBalance;
+        selectors.profileBalance.textContent = formattedBalance;
+        selectors.betAmountInput.max = currentUser.balance;
+    }
+
+    function updateProfileUI() {
+        selectors.profileName.textContent = currentUser.first_name || "User";
+        selectors.profileUsername.textContent = currentUser.username ? `@${currentUser.username}` : `#${currentUser.id}`;
+        selectors.profileAvatar.textContent = (currentUser.first_name || "?").charAt(0);
+    }
+    
+    function switchView(viewId) {
+        selectors.views.forEach(v => v.classList.toggle('active', v.id === viewId));
+        selectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
+    }
+
+    function updateHeaderValues() {
+        selectors.headerBetValue.textContent = `$${selectors.betAmountInput.value}`;
+        selectors.headerRiskValue.textContent = riskLevelConfigs[currentRisk].name;
+    }
+
+    // --- Plinko Game Logic (Visuals) ---
+    function getSlotColor(m) { if (m >= 20) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)'; if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)'; }
+    function setupBoard(risk) {
+        if (isDropping) return; currentRisk = risk; updateHeaderValues();
+        BOARD_WIDTH = selectors.board.clientWidth; if (BOARD_WIDTH === 0) return;
+        BOARD_HEIGHT = selectors.board.clientHeight; PEG_RADIUS = BOARD_WIDTH / 150;
+        CHIP_RADIUS = (risk === 'high') ? BOARD_WIDTH / 55 : BOARD_WIDTH / 45;
+        const config = riskLevelConfigs[risk]; pegs = []; selectors.board.innerHTML = ''; selectors.slotsContainer.innerHTML = '';
+        const hSpacing = BOARD_WIDTH / config.cols, vSpacing = BOARD_HEIGHT / (config.rows + 1);
+        for (let r = 0; r < config.rows; r++) {
+            const numPegs = r % 2 === 0 ? config.cols - 1 : config.cols; const xOffset = r % 2 === 0 ? hSpacing : hSpacing / 2;
+            for (let c = 0; c < numPegs; c++) {
+                const x = xOffset + c * hSpacing, y = vSpacing + r * vSpacing; pegs.push({ x, y });
+                const pegEl = document.createElement('div'); pegEl.className = 'peg'; pegEl.style.cssText = `width:${PEG_RADIUS * 2}px;height:${PEG_RADIUS * 2}px;left:${x}px;top:${y}px;`; selectors.board.appendChild(pegEl);
+            }
+        }
+        config.multipliers.forEach(m => { const slot = document.createElement('div'); slot.className = 'slot'; slot.dataset.multiplier = m; slot.textContent = `${m}x`; slot.style.backgroundColor = getSlotColor(m); selectors.slotsContainer.appendChild(slot); });
+        selectors.riskButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.risk === risk));
+    }
+    
+    async function performDrop() {
+        const bet = parseFloat(selectors.betAmountInput.value);
+        if (bet > currentUser.balance) { tg.showAlert("Недостаточно средств!"); return; }
+        
+        setControlsDisabled(true);
+        
+        try {
+            const result = await apiRequest('/api/plinko_drop', { bet, risk: currentRisk });
+            
+            // Списываем ставку визуально сразу
+            currentUser.balance -= bet;
+            updateBalanceUI();
+            
+            // Запускаем анимацию
+            const chipId = chipIdCounter++;
+            const chipEl = document.createElement('div');
+            chipEl.className = 'chip';
+            chipEl.style.width = `${CHIP_RADIUS * 2}px`;
+            chipEl.style.height = `${CHIP_RADIUS * 2}px`;
+
+            const newChip = { 
+                id: chipId, 
+                x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, 
+                vx: (Math.random() - 0.5) * 2, vy: 0,
+                element: chipEl,
+                // Сохраняем результат от сервера
+                serverResult: result
             };
             
-            let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
-            const riskLevelConfigs = {
-                low:    { rows: 8,  cols: 10, multipliers: [5, 2, 1.5, 1.1, 1, 1, 1.1, 1.5, 2, 5] },
-                medium: { rows: 12, cols: 14, multipliers: [20, 5, 2, 1.2, 0.5, 0.4, 0.4, 0.5, 1.2, 2, 5, 20] },
-                high:   { rows: 16, cols: 18, multipliers: [250, 25, 5, 1.5, 0.5, 0.2, 0.1, 0, 0.1, 0.2, 0.5, 1.5, 5, 25, 250] }
-            };
-            let GRAVITY = 0.25, DAMPING = 0.55;
-            let balance = 2000.00, currentRisk = 'medium', isDropping = false, isAutoDropping = false, autoDropInterval = null, pegs = [], activeChips = [];
-            let chipIdCounter = 0;
-            const FREE_DROP_INTERVAL = 24 * 60 * 60 * 1000, FREE_DROP_BASE_BET = 1.00;
-            let freeDropTimerInterval = null;
-            
-            function initProfile() {
-                const profileName = document.getElementById('profile-name'), profileUsername = document.getElementById('profile-username');
-                let user = null;
-                try { user = tg.initDataUnsafe?.user; } catch (e) { /* ignore */ }
-                if (user && user.id) {
-                    const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
-                    profileName.textContent = name; profileUsername.textContent = user.username ? `@${user.username}` : `ID: ${user.id}`;
-                    allSelectors.referralLinkElement.textContent = `t.me/your_bot_name?start=ref${user.id}`;
-                } else {
-                    profileName.textContent = "Тестовый Пользователь"; profileUsername.textContent = "@test_user";
-                }
-            }
-            
-            function switchView(viewId) {
-                if(freeDropTimerInterval) { clearInterval(freeDropTimerInterval); freeDropTimerInterval = null; }
-                allSelectors.views.forEach(v => v.classList.toggle('active', v.id === viewId));
-                allSelectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
-                if (viewId === 'main-game-view') { setTimeout(() => setupBoard(currentRisk), 0); }
-                else if (viewId === 'free-try-view') { initFreeTryView(); }
-            }
-            allSelectors.navButtons.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
-            allSelectors.copyLinkBtn.addEventListener('click', () => { navigator.clipboard.writeText(allSelectors.referralLinkElement.textContent).then(() => { allSelectors.copyLinkBtn.textContent = 'Скопировано!'; setTimeout(() => { allSelectors.copyLinkBtn.textContent = 'Копировать'; }, 2000); }); });
-            allSelectors.shareLinkBtn.addEventListener('click', () => { const text = `Присоединяйся!`, url = allSelectors.referralLinkElement.textContent; try { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`); } catch(e) { alert("Функция 'Поделиться' работает только в Telegram."); } });
-            function updateFreeDropTimer() {
-                const lastClaim = localStorage.getItem('lastFreeDropClaim'), nextAvailableTime = parseInt(lastClaim) + FREE_DROP_INTERVAL, now = Date.now(), timeLeft = nextAvailableTime - now;
-                if (!lastClaim || timeLeft <= 0) { allSelectors.timerElement.textContent = "Готово!"; allSelectors.claimFreeDropBtn.disabled = false; if(freeDropTimerInterval) clearInterval(freeDropTimerInterval); } 
-                else {
-                    allSelectors.claimFreeDropBtn.disabled = true;
-                    const h = Math.floor(timeLeft / 3600000), m = Math.floor((timeLeft % 3600000) / 60000), s = Math.floor((timeLeft % 60000) / 1000);
-                    allSelectors.timerElement.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-                }
-            }
-            function initFreeTryView() { updateFreeDropTimer(); if(freeDropTimerInterval) clearInterval(freeDropTimerInterval); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
-            function handleClaimFreeDrop() { if (isDropping) return; localStorage.setItem('lastFreeDropClaim', Date.now().toString()); initFreeTryView(); switchView('main-game-view'); setTimeout(() => { setupBoard('low'); setTimeout(() => performDrop(0, FREE_DROP_BASE_BET), 50); }, 100); }
-            allSelectors.claimFreeDropBtn.addEventListener('click', handleClaimFreeDrop);
-            
-            function getSlotColor(m) { if (m >= 20) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)'; if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)'; }
-            function setupBoard(risk) {
-                if (isDropping) return; currentRisk = risk; BOARD_WIDTH = allSelectors.board.clientWidth; if (BOARD_WIDTH === 0) return;
-                BOARD_HEIGHT = allSelectors.board.clientHeight; PEG_RADIUS = BOARD_WIDTH / 150;
-                if (risk === 'high') { CHIP_RADIUS = BOARD_WIDTH / 55; GRAVITY = 0.30; } else { CHIP_RADIUS = BOARD_WIDTH / 45; GRAVITY = 0.25; }
-                const config = riskLevelConfigs[risk]; pegs = []; allSelectors.board.innerHTML = ''; allSelectors.slotsContainer.innerHTML = '';
-                const hSpacing = BOARD_WIDTH / config.cols, vSpacing = BOARD_HEIGHT / (config.rows + 1);
-                for (let r = 0; r < config.rows; r++) {
-                    const numPegs = r % 2 === 0 ? config.cols - 1 : config.cols; const xOffset = r % 2 === 0 ? hSpacing : hSpacing / 2;
-                    for (let c = 0; c < numPegs; c++) {
-                        const x = xOffset + c * hSpacing, y = vSpacing + r * vSpacing; pegs.push({ x, y });
-                        const pegEl = document.createElement('div'); pegEl.className = 'peg'; pegEl.style.cssText = `width:${PEG_RADIUS * 2}px;height:${PEG_RADIUS * 2}px;left:${x}px;top:${y}px;`; allSelectors.board.appendChild(pegEl);
-                    }
-                }
-                config.multipliers.forEach(m => { const slot = document.createElement('div'); slot.className = 'slot'; slot.dataset.multiplier = m; slot.textContent = `${m}x`; slot.style.backgroundColor = getSlotColor(m); allSelectors.slotsContainer.appendChild(slot); });
-                allSelectors.riskButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.risk === risk));
-            }
-            function updateBalanceUI() { const f = `$${balance.toFixed(2)}`; allSelectors.balanceElement.textContent = f; allSelectors.profileBalanceElement.textContent = f; allSelectors.betAmountInput.max = balance; }
-            function handleBetChange() { let b = parseFloat(allSelectors.betAmountInput.value); if (isNaN(b) || b < 1) b = 1; if (b > balance) b = balance; allSelectors.betAmountInput.value = Math.floor(b); }
-            function setControlsDisabled(disabled) { allSelectors.dropButton.disabled = disabled; allSelectors.riskButtons.forEach(b => b.disabled = disabled); allSelectors.stepperButtons.forEach(b => b.disabled = disabled); allSelectors.betAmountInput.disabled = disabled; allSelectors.autoDropCountInput.disabled = disabled; if (!disabled) { allSelectors.autoDropButton.disabled = false; } }
-            function performDrop(betCost, betValue) {
-                if (betCost > 0) { balance -= betCost; updateBalanceUI(); }
-                const chipId = chipIdCounter++, chipEl = document.createElement('div'); chipEl.className = 'chip'; chipEl.style.width = `${CHIP_RADIUS * 2}px`; chipEl.style.height = `${CHIP_RADIUS * 2}px`;
-                const newChip = { id: chipId, x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, betAmount: betValue, element: chipEl, vx: (Math.random() - 0.5) * 2, vy: 0, };
-                chipEl.style.left = `${newChip.x}px`; chipEl.style.top = `${newChip.y}px`; chipEl.style.visibility = 'visible';
-                allSelectors.board.appendChild(chipEl); activeChips.push(newChip);
-                if (!isDropping) { isDropping = true; document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight')); requestAnimationFrame(updatePhysics); }
-            }
-            function updatePhysics() {
-                if (activeChips.length === 0) { isDropping = false; if (!isAutoDropping) { setControlsDisabled(false); } return; }
-                for (let i = activeChips.length - 1; i >= 0; i--) {
-                    const chip = activeChips[i];
-                    chip.vy += GRAVITY; chip.x += chip.vx; chip.y += chip.vy;
-                    if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) { chip.vx *= -DAMPING; chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS)); }
-                    pegs.forEach(peg => {
-                        const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist < CHIP_RADIUS + PEG_RADIUS) {
-                            const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
-                            chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
-                            const normalX = dx / dist, normalY = dy / dist, dot = chip.vx * normalX + chip.vy * normalY;
-                            chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
-                            chip.vx += (Math.random() - 0.5) * 0.25;
-                        }
-                    });
-                    chip.element.style.left = `${chip.x}px`; chip.element.style.top = `${chip.y}px`;
-                    if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) { endDrop(chip); activeChips.splice(i, 1); }
-                }
+            chipEl.style.left = `${newChip.x}px`; chipEl.style.top = `${newChip.y}px`; chipEl.style.visibility = 'visible';
+            selectors.board.appendChild(chipEl);
+            activeChips.push(newChip);
+
+            if (!isDropping) {
+                isDropping = true;
+                document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
                 requestAnimationFrame(updatePhysics);
             }
-            function endDrop(chip) {
-                chip.element.remove();
-                const m = riskLevelConfigs[currentRisk].multipliers, sW = BOARD_WIDTH / m.length;
-                let sI = Math.floor(chip.x / sW); sI = Math.max(0, Math.min(m.length - 1, sI));
-                const mult = m[sI], winnings = chip.betAmount * mult; balance += winnings;
-                const tS = document.querySelectorAll('.slot')[sI]; tS.classList.remove('highlight'); void tS.offsetWidth; tS.classList.add('highlight');
-                try { if (mult >= 10) tg.HapticFeedback.notificationOccurred('success'); else if (mult >= 1) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
-                updateBalanceUI();
-            }
-            function dropChip() {
-                if (isDropping && activeChips.length > 0) return;
-                const bet = parseFloat(allSelectors.betAmountInput.value); if (bet > balance) { alert("Недостаточно средств!"); return; }
-                try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
-                setControlsDisabled(true); performDrop(bet, bet);
-            }
-            function startAutoDrop() {
-                if (isAutoDropping) { stopAutoDrop(); return; } if (isDropping && activeChips.length > 0) return;
-                const bet = parseFloat(allSelectors.betAmountInput.value), count = parseInt(allSelectors.autoDropCountInput.value, 10), cost = bet * count;
-                if (cost > balance) { alert("Недостаточно средств для всех авто-бросков!"); return; }
-                try { tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
-                isAutoDropping = true; setControlsDisabled(true); allSelectors.autoDropButton.disabled = false; allSelectors.autoDropButton.textContent = 'Стоп';
-                balance -= cost; updateBalanceUI(); let drops = 0;
-                autoDropInterval = setInterval(() => { if (drops >= count) { stopAutoDrop(false); return; } performDrop(0, bet); drops++; }, 200);
-            }
-            function stopAutoDrop(imm = true) {
-                if (autoDropInterval) { clearInterval(autoDropInterval); autoDropInterval = null; }
-                isAutoDropping = false; allSelectors.autoDropButton.textContent = 'Старт';
-                if (imm && activeChips.length === 0) { setControlsDisabled(false); } else { const ch = setInterval(() => { if (activeChips.length === 0) { clearInterval(ch); setControlsDisabled(false); } }, 200); }
-            }
-            function handleStepper(event) {
-                const btn = event.currentTarget, action = btn.dataset.action, targetId = btn.dataset.target, input = document.getElementById(targetId);
-                if (input) {
-                    let val = parseInt(input.value, 10) || 0, step = (targetId === 'bet-amount' && val >= 100) ? 10 : 1, min = parseInt(input.min, 10), max = parseInt(input.max, 10);
-                    if (action === 'plus') val = Math.min(val + step, max); else if (action === 'minus') val = Math.max(val - step, min);
-                    input.value = val; if (targetId === 'bet-amount') handleBetChange();
+        } catch (error) {
+            setControlsDisabled(false); // Разблокируем контролы если сервер вернул ошибку
+        }
+    }
+
+    function updatePhysics() {
+        if (activeChips.length === 0) { isDropping = false; if (!isAutoDropping) { setControlsDisabled(false); } return; }
+        for (let i = activeChips.length - 1; i >= 0; i--) {
+            const chip = activeChips[i];
+            chip.vy += GRAVITY; chip.x += chip.vx; chip.y += chip.vy;
+            if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) { chip.vx *= -DAMPING; chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS)); }
+            pegs.forEach(peg => {
+                const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < CHIP_RADIUS + PEG_RADIUS) {
+                    const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
+                    chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
+                    const normalX = dx / dist, normalY = dy / dist, dot = chip.vx * normalX + chip.vy * normalY;
+                    chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                    chip.vx += (Math.random() - 0.5) * 0.25;
                 }
+            });
+            chip.element.style.left = `${chip.x}px`; chip.element.style.top = `${chip.y}px`;
+            if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) { endDrop(chip); activeChips.splice(i, 1); }
+        }
+        requestAnimationFrame(updatePhysics);
+    }
+    
+    function endDrop(chip) {
+        chip.element.remove();
+        // Используем результат от сервера
+        const result = chip.serverResult;
+        currentUser.balance = result.new_balance;
+        updateBalanceUI();
+        
+        const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
+        if (targetSlot) {
+            targetSlot.classList.add('highlight');
+        }
+        
+        if (result.multiplier >= 10) tg.HapticFeedback.notificationOccurred('success');
+        else if (result.multiplier >= 1) tg.HapticFeedback.impactOccurred('medium');
+    }
+
+    // --- Controls and Event Handlers ---
+    function setControlsDisabled(disabled) {
+        selectors.dropButton.disabled = disabled;
+        selectors.riskButtons.forEach(b => b.disabled = disabled);
+        selectors.stepperButtons.forEach(b => b.disabled = disabled);
+        selectors.betAmountInput.disabled = disabled;
+        selectors.autoDropCountInput.disabled = disabled;
+        selectors.collapsibleHeader.style.pointerEvents = disabled ? 'none' : 'auto';
+        selectors.collapsibleHeader.style.opacity = disabled ? '0.7' : '1';
+        if (!disabled) { selectors.autoDropButton.disabled = false; }
+    }
+
+    function handleBetChange() { 
+        let b = parseFloat(selectors.betAmountInput.value); 
+        if (isNaN(b) || b < 1) b = 1; 
+        if (b > currentUser.balance) b = currentUser.balance;
+        selectors.betAmountInput.value = Math.floor(b);
+        updateHeaderValues();
+    }
+    
+    function handleStepper(event) {
+        const btn = event.currentTarget, action = btn.dataset.action, targetId = btn.dataset.target, input = document.getElementById(targetId);
+        if (input) {
+            let val = parseInt(input.value, 10) || 0, step = (targetId === 'bet-amount' && val >= 100) ? 10 : 1;
+            let min = parseInt(input.min, 10), max = parseInt(input.max, 10);
+            if (action === 'plus') val = Math.min(val + step, max); else if (action === 'minus') val = Math.max(val - step, min);
+            input.value = val; if (targetId === 'bet-amount') handleBetChange();
+        }
+    }
+
+    // --- Deposit Logic ---
+    async function handleTopUpTON() {
+        selectors.topUpTonBtn.disabled = true;
+        selectors.tonDepositStatus.textContent = "Создание запроса...";
+        selectors.tonDepositLoader.style.display = 'block';
+        selectors.depositTonModal.style.display = 'flex';
+        try {
+            const res = await apiRequest('/api/initiate_ton_deposit');
+            selectors.tonDepositAddress.value = res.recipient_address;
+            selectors.tonDepositComment.value = res.comment;
+            selectors.tonDepositStatus.textContent = "Скопируйте адрес и комментарий.";
+        } catch(e) {
+            selectors.tonDepositStatus.textContent = "Ошибка. Попробуйте снова.";
+        } finally {
+            selectors.topUpTonBtn.disabled = false;
+            selectors.tonDepositLoader.style.display = 'none';
+        }
+    }
+
+    async function verifyTONDeposit() {
+        selectors.verifyTonDepositBtn.disabled = true;
+        selectors.tonDepositStatus.textContent = "Проверяем транзакцию в блокчейне...";
+        selectors.tonDepositLoader.style.display = 'block';
+        try {
+            const res = await apiRequest('/api/verify_ton_deposit', { comment: selectors.tonDepositComment.value });
+            if (res.status === 'success') {
+                tg.showAlert(res.message);
+                currentUser.balance = res.new_balance;
+                updateBalanceUI();
+                selectors.depositTonModal.style.display = 'none';
+            } else {
+                selectors.tonDepositStatus.textContent = res.message;
             }
-            
-            allSelectors.riskButtons.forEach(b => b.addEventListener('click', () => setupBoard(b.dataset.risk)));
-            allSelectors.dropButton.addEventListener('click', dropChip);
-            allSelectors.autoDropButton.addEventListener('click', startAutoDrop);
-            allSelectors.betAmountInput.addEventListener('change', handleBetChange);
-            allSelectors.stepperButtons.forEach(b => b.addEventListener('click', handleStepper));
-            window.addEventListener('resize', () => setupBoard(currentRisk));
-            
-            initProfile(); setupBoard(currentRisk); updateBalanceUI();
-        });
-    </script>
+        } catch(e) {
+            selectors.tonDepositStatus.textContent = "Ошибка проверки. Попробуйте еще раз.";
+        } finally {
+            selectors.verifyTonDepositBtn.disabled = false;
+            selectors.tonDepositLoader.style.display = 'none';
+        }
+    }
+
+    async function handleTopUpStars() {
+        const amount = parseInt(selectors.depositAmountInput.value);
+        if (isNaN(amount) || amount < 1) {
+            tg.showAlert("Пожалуйста, введите корректную сумму звезд для пополнения.");
+            return;
+        }
+        selectors.topUpStarsBtn.disabled = true;
+        try {
+            const res = await apiRequest('/api/create_stars_invoice', { amount });
+            tg.openInvoice(res.invoice_link, async (status) => {
+                if (status === 'paid') {
+                    tg.showAlert("Оплата прошла успешно! Баланс обновляется...");
+                    const userData = await apiRequest('/api/user_data');
+                    currentUser = userData;
+                    updateBalanceUI();
+                } else {
+                    tg.showAlert(`Статус оплаты: ${status}.`);
+                }
+            });
+        } finally {
+            selectors.topUpStarsBtn.disabled = false;
+        }
+    }
+
+    // --- Event Listeners ---
+    selectors.navButtons.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+    selectors.collapsibleHeader.addEventListener('click', () => {
+        selectors.collapsibleContent.classList.toggle('open');
+        selectors.toggleIcon.classList.toggle('open');
+    });
+    selectors.riskButtons.forEach(b => b.addEventListener('click', () => setupBoard(b.dataset.risk)));
+    selectors.dropButton.addEventListener('click', performDrop);
+    selectors.betAmountInput.addEventListener('change', handleBetChange);
+    selectors.stepperButtons.forEach(b => b.addEventListener('click', handleStepper));
+    window.addEventListener('resize', () => setupBoard(currentRisk));
+    
+    selectors.topUpTonBtn.addEventListener('click', handleTopUpTON);
+    selectors.topUpStarsBtn.addEventListener('click', handleTopUpStars);
+    selectors.verifyTonDepositBtn.addEventListener('click', verifyTONDeposit);
+    selectors.closeTonDepositModalBtn.addEventListener('click', () => selectors.depositTonModal.style.display = 'none');
+
+    // --- Initialize App ---
+    initializeApp();
+});
+</script>
 </body>
 </html>
