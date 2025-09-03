@@ -46,7 +46,7 @@
             display: flex;
             justify-content: center;
             min-height: 100%;
-            padding: 90px 15px calc(var(--nav-height) + 30px); /* Increased top padding to 90px */
+            padding: 15px 15px calc(var(--nav-height) + 30px);
             overflow-y: auto;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -54,15 +54,25 @@
         #app-container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
         .view { display: none; flex-direction: column; align-items: center; width: 100%; gap: 15px; }
         .view.active { display: flex; }
-        header { width: 100%; text-align: center; margin-bottom: 5px; }
+        
+        header {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 5px;
+        }
         header h1 {
-            font-size: clamp(1.8rem, 7vw, 2.5rem); font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
-            color: white; background: linear-gradient(90deg, var(--highlight-secondary), var(--highlight-primary));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 20px rgba(168, 85, 247, 0.3); margin: 0;
+            font-size: clamp(1.8rem, 7vw, 2.5rem);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: white;
+            background: linear-gradient(90deg, var(--highlight-secondary), var(--highlight-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+            margin: 0;
         }
         
-        /* Wrapper for board and slots to remove gap between them */
         .game-board-area { width: 100%; }
         
         #plinko-board-container { position: relative; width: 100%; flex-shrink: 0; }
@@ -91,12 +101,14 @@
             flex-grow: 1; height: 45px; display: flex; justify-content: center; align-items: center;
             font-weight: 600; font-size: clamp(0.6rem, 2.5vw, 0.8rem); color: white; transition: all 0.3s ease;
         }
+        
         @keyframes highlight-win {
             0% { transform: scale(1); filter: brightness(1); }
             50% { transform: scale(1.1); filter: brightness(2) drop-shadow(0 0 15px var(--highlight-secondary)); }
             100% { transform: scale(1); filter: brightness(1); }
         }
         .slot.highlight { animation: highlight-win 0.6s ease-out; z-index: 10; }
+        
         .panel {
             background-color: var(--surface-color); padding: 12px; border-radius: 20px;
             width: 100%; display: flex; flex-direction: column; gap: 10px;
@@ -109,23 +121,39 @@
         .balance-display label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
         .balance-display .value { background: none; border: none; outline: none; color: var(--text-color); font-size: 1.1rem; font-weight: 600; text-align: right; }
         
-        .controls-grid { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: auto auto; gap: 8px; }
-        .stepper-input-group, .risk-selector { background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: center; padding: 4px; height: 48px;}
+        /* FIXED: Correct grid layout for all controls */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr; /* 2 parts for controls, 1 for drop button */
+            grid-template-rows: auto auto auto; /* THREE rows for controls */
+            gap: 8px;
+        }
+        .stepper-input-group, .risk-selector {
+            background-color: var(--bg-color); border: 1px solid var(--border-color);
+            border-radius: 12px; display: flex; align-items: center; padding: 4px;
+            height: 48px;
+        }
         .stepper-input-group { padding-left: 10px; }
         .stepper-input-group label { font-size: 0.8rem; color: var(--text-muted); margin-right: auto;}
         .stepper-input-group input { background: transparent; border: none; color: var(--text-color); font-weight: 600; font-size: 1rem; text-align: center; width: 60px; -moz-appearance: textfield; }
         .stepper-input-group input::-webkit-inner-spin-button, .stepper-input-group input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .stepper-button { background: var(--stepper-bg); border: none; color: var(--text-color); width: 28px; height: 28px; border-radius: 8px; font-size: 1.2rem; line-height: 1; cursor: pointer; transition: background 0.2s; margin: 0 4px; }
         .stepper-button:hover { background-color: rgba(255,255,255,0.1); }
-        #drop-button { grid-column: 2 / 3; grid-row: 1 / 3; font-size: 1.1rem; } /* Reduced font size */
-        #auto-drop-controls { grid-column: 1 / 2; grid-row: 2 / 3; }
-        .risk-selector { padding: 3px; height: 48px; }
+        
+        #drop-button {
+            grid-column: 2 / 3; /* Place in the second column */
+            grid-row: 1 / 4;    /* Span across all THREE rows */
+            font-size: 1.2rem;
+        }
+        .risk-selector {
+            padding: 3px;
+            height: 48px;
+        }
         .risk-button { flex-grow: 1; padding: 8px 5px; border: none; background: none; border-radius: 9px; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.3s ease; }
         .risk-button.active { background-color: var(--highlight-primary); color: white; }
         
         .main-button {
-            padding: 15px 12px; /* Set consistent padding */
-            font-weight: 700; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color);
+            padding: 15px 12px; font-weight: 700; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color);
             text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.2s ease;
             display: flex; justify-content: center; align-items: center; background: var(--button-primary-bg);
         }
@@ -156,6 +184,7 @@
     <div id="app-container">
         
         <div id="main-game-view" class="view active">
+            <header><h1>Plinko</h1></header>
             <div class="game-board-area">
                 <div id="plinko-board-container">
                     <div id="plinko-board"></div>
@@ -163,19 +192,19 @@
                 <div id="slots-container"></div>
             </div>
             <div class="panel">
-                <div class="balance-display"> <label>Баланс</label> <div id="balance" class="value">$2000.00</div> </div>
+                <div class="balance-display">
+                    <label>Баланс</label>
+                    <div id="balance" class="value">$2000.00</div>
+                </div>
                 <div class="controls-grid">
+                    <!-- FIXED: Correct order and placement of controls -->
                     <div class="stepper-input-group" id="bet-amount-controls">
                         <label>Ставка</label>
                         <button class="stepper-button" data-action="minus" data-target="bet-amount">-</button>
                         <input type="number" id="bet-amount" value="10" min="1" step="1">
                         <button class="stepper-button" data-action="plus" data-target="bet-amount">+</button>
                     </div>
-                    <div class="risk-selector">
-                        <button class="risk-button" data-risk="low">Низкий</button>
-                        <button class="risk-button active" data-risk="medium">Средний</button>
-                        <button class="risk-button" data-risk="high">Высокий</button>
-                    </div>
+                    
                     <div class="stepper-input-group" id="auto-drop-controls">
                         <label>Авто</label>
                         <button class="stepper-button" data-action="minus" data-target="auto-drop-count">-</button>
@@ -183,6 +212,13 @@
                         <button class="stepper-button" data-action="plus" data-target="auto-drop-count">+</button>
                         <button id="auto-drop-button" class="main-button">Старт</button>
                     </div>
+
+                    <div class="risk-selector">
+                        <button class="risk-button" data-risk="low">Низкий</button>
+                        <button class="risk-button active" data-risk="medium">Средний</button>
+                        <button class="risk-button" data-risk="high">Высокий</button>
+                    </div>
+
                     <button id="drop-button" class="main-button">Бросить</button>
                 </div>
             </div>
@@ -278,8 +314,11 @@
             }
             
             try { 
-                tg.ready(); tg.expand();
-                if (tg.requestFullScreen && typeof tg.requestFullScreen === 'function') { tg.requestFullScreen(); }
+                tg.ready();
+                tg.expand();
+                if (tg.requestFullscreen && typeof tg.requestFullscreen === 'function') {
+                    tg.requestFullscreen();
+                }
                 applyTelegramTheme(); 
             } catch (e) { console.error("Telegram WebApp script not found or failed.", e); }
 
@@ -293,8 +332,8 @@
             
             let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
             const riskLevelConfigs = {
-                low:    { rows: 8,  cols: 10, multipliers: [5, 2, 1.5, 1.1, 0.8, 0.8, 1.1, 1.5, 2, 5] },
-                medium: { rows: 12, cols: 14, multipliers: [20, 5, 2, 1, 0.5, 0.4, 0.4, 0.5, 1, 2, 5, 20] },
+                low:    { rows: 8,  cols: 10, multipliers: [5, 2, 1.5, 1.1, 1, 1, 1.1, 1.5, 2, 5] },
+                medium: { rows: 12, cols: 14, multipliers: [20, 5, 2, 1.2, 0.5, 0.4, 0.4, 0.5, 1.2, 2, 5, 20] },
                 high:   { rows: 16, cols: 18, multipliers: [250, 25, 5, 1.5, 0.5, 0.2, 0.1, 0, 0.1, 0.2, 0.5, 1.5, 5, 25, 250] }
             };
             let GRAVITY = 0.25, DAMPING = 0.55;
@@ -380,7 +419,7 @@
                             chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
                             const normalX = dx / dist, normalY = dy / dist, dot = chip.vx * normalX + chip.vy * normalY;
                             chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
-                            chip.vx += (Math.random() - 0.5) * 0.25; // Reduced horizontal kick for lower win probability
+                            chip.vx += (Math.random() - 0.5) * 0.25;
                         }
                     });
                     chip.element.style.left = `${chip.x}px`; chip.element.style.top = `${chip.y}px`;
