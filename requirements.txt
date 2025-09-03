@@ -1,0 +1,8 @@
+Flask
+flask-cors
+gunicorn
+python-dotenv
+pyTelegramBotAPI
+SQLAlchemy
+psycopg2-binary
+pytoniq
