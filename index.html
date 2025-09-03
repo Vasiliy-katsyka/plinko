@@ -186,7 +186,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram.WebApp;
-    const API_BASE_URL = 'https://plinko-4vm7.onrender.com';
+    const API_BASE_URL = 'https://plinko-rj2a.onrender.com';
     const FREE_DROP_INTERVAL = 24 * 60 * 60 * 1000;
     const FREE_DROP_BET = 0.01;
 
@@ -244,11 +244,14 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp() {
         tg.ready(); tg.expand();
         try {
-            const userData = await apiRequest('/api/user_data', 'POST', {}); // CORRECTED: Pass empty body for POST
+            const userData = await apiRequest('/api/user_data', 'POST', {});
             currentUser = userData;
             updateBalanceUI();
             updateProfileUI();
-        } catch (error) { tg.showAlert("Не удалось загрузить данные пользователя."); }
+        } catch (error) {
+            console.error("Failed to load user data:", error);
+            tg.showAlert("Не удалось загрузить данные пользователя. Попробуйте перезапустить приложение.");
+        }
         setupBoard(currentRisk);
         updateHeaderValues();
     }
