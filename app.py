@@ -32,10 +32,27 @@ DEPOSIT_WALLET_ADDRESS = os.environ.get("DEPOSIT_WALLET_ADDRESS")
 ADMIN_IDS_STR = os.environ.get("ADMIN_USER_IDS", "")
 ADMIN_USER_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',') if admin_id.strip()]
 
+#
+# === NEW CONFIGURATION TO PASTE INTO app.py ===
+#
+
 PLINKO_CONFIGS = {
-    'low':    {'rows': 8, 'multipliers': [5, 2, 1.5, 1.1, 1, 1, 1.1, 1.5, 2, 5]},
-    'medium': {'rows': 12, 'multipliers': [20, 5, 2, 1.2, 0.5, 0.4, 0.4, 0.5, 1.2, 2, 5, 20]},
-    'high':   {'rows': 16, 'multipliers': [250, 25, 5, 1.5, 0.5, 0.2, 0.1, 0, 0.1, 0.2, 0.5, 1.5, 5, 25, 250]}
+    'low': {
+        'rows': 8,
+        # 9 slots. Most common outcome is a 30% loss. Max win is small.
+        'multipliers': [4, 2, 1.2, 0.9, 0.7, 0.9, 1.2, 2, 4]
+    },
+    'medium': {
+        'rows': 12,
+        # 13 slots. Punishing center, but decent wins on the edges.
+        'multipliers': [18, 5, 2, 1.1, 0.8, 0.5, 0.3, 0.5, 0.8, 1.1, 2, 5, 18]
+    },
+    'high': {
+        'rows': 16,
+        # 17 slots. Brutal center with 0x total loss. All or nothing.
+        # The 5 most probable outcomes are all losses.
+        'multipliers': [130, 25, 8, 2, 0.5, 0.2, 0.1, 0.1, 0, 0.1, 0.1, 0.2, 0.5, 2, 8, 25, 130]
+    }
 }
 TON_TO_STARS_RATE_BACKEND = 250
 
