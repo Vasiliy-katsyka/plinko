@@ -187,7 +187,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram.WebApp;
     const API_BASE_URL = 'https://plinko-4vm7.onrender.com';
-    const FREE_DROP_INTERVAL = 24 * 60 * 60 * 1000;
+    const FREE_DROP_INTERVAL = 10 * 1000;
     const FREE_DROP_BET = 0.01;
 
     let currentUser = { id: null, balance: 0.00, last_free_drop_claim: null };
@@ -295,6 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     function initFreeTryView() { updateFreeDropTimer(); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
+    // In your HTML <script> tag
+    
     async function handleClaimFreeDrop() {
         selectors.claimFreeDropBtn.disabled = true;
         try {
@@ -304,9 +306,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 tg.showAlert(result.message);
                 updateFreeDropTimer();
                 switchView('main-game-view');
-                setTimeout(() => performDrop(true), 100);
-            } else { tg.showAlert(result.message); selectors.claimFreeDropBtn.disabled = false; }
-        } catch (e) { selectors.claimFreeDropBtn.disabled = false; }
+    
+                // --- START: NEW LOGIC ---
+                // Animate the result we got directly from the claim API
+                const gameResult = result.game_result;
+                const chipId = chipIdCounter++;
+                const chipEl = document.createElement('div');
+                chipEl.className = 'chip';
+                chipEl.style.width = `${CHIP_RADIUS * 2}px`;
+                chipEl.style.height = `${CHIP_RADIUS * 2}px`;
+    
+                // We pass the server result directly to the new chip
+                const newChip = { 
+                    id: chipId, 
+                    x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, 
+                    vx: (Math.random() - 0.5) * 2, vy: 0, 
+                    element: chipEl, 
+                    serverResult: gameResult // Use the result from the API
+                };
+    
+                chipEl.style.left = `${newChip.x}px`;
+                chipEl.style.top = `${newChip.y}px`;
+                chipEl.style.visibility = 'visible';
+                selectors.board.appendChild(chipEl);
+                activeChips.push(newChip);
+    
+                if (!isDropping) {
+                    isDropping = true;
+                    document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
+                    requestAnimationFrame(updatePhysics);
+                }
+                // --- END: NEW LOGIC ---
+    
+            } else {
+                tg.showAlert(result.message);
+                selectors.claimFreeDropBtn.disabled = false;
+            }
+        } catch (e) {
+            selectors.claimFreeDropBtn.disabled = false;
+        }
     }
 
     function getSlotColor(m) {
