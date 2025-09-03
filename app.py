@@ -28,23 +28,21 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://plinko-rj2a.onrender.com")
 DEPOSIT_WALLET_ADDRESS = os.environ.get("DEPOSIT_WALLET_ADDRESS")
-# ВАЖНО: Укажите ваш Telegram ID в переменных окружения на Render.com
-# Пример: ADMIN_USER_IDS = "12345678,87654321"
+PAYMENT_PROVIDER_TOKEN = os.environ.get("PAYMENT_PROVIDER_TOKEN", "") # Add your Stars payment provider token here
 ADMIN_IDS_STR = os.environ.get("ADMIN_USER_IDS", "")
 ADMIN_USER_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',') if admin_id.strip()]
 
-# Конфигурация игры Plinko (теперь на бэкенде)
+TON_TO_STARS_RATE = 250
+
 PLINKO_CONFIGS = {
     'low':    {'rows': 8, 'multipliers': [5, 2, 1.5, 1.1, 1, 1, 1.1, 1.5, 2, 5]},
     'medium': {'rows': 12, 'multipliers': [20, 5, 2, 1.2, 0.5, 0.4, 0.4, 0.5, 1.2, 2, 5, 20]},
     'high':   {'rows': 16, 'multipliers': [250, 25, 5, 1.5, 0.5, 0.2, 0.1, 0, 0.1, 0.2, 0.5, 1.5, 5, 25, 250]}
 }
 
-# --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Database Setup (SQLAlchemy) ---
 if not DATABASE_URL:
     logger.error("DATABASE_URL is not set. Exiting.")
     exit()
@@ -53,13 +51,12 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- Database Models ---
 class User(Base):
     __tablename__ = "plinko_users"
     telegram_id = Column(BigInteger, primary_key=True, index=True, autoincrement=False)
     username = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
-    balance = Column(Float, default=2000.0, nullable=False) # Стартовый баланс для новых пользователей
+    balance = Column(Float, default=0.0, nullable=False) # Start with 0 balance
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class PlinkoDrop(Base):
@@ -77,7 +74,7 @@ class Deposit(Base):
     id = Column(BigInteger, primary_key=True)
     user_id = Column(BigInteger, ForeignKey("plinko_users.telegram_id"), nullable=False)
     amount = Column(Float, nullable=False)
-    deposit_type = Column(String, nullable=False) # 'TON', 'STARS', 'GIFT'
+    deposit_type = Column(String, nullable=False)
     status = Column(String, default="pending", index=True)
     unique_comment = Column(String, nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -85,12 +82,10 @@ class Deposit(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- Flask App & Bot Initialization ---
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}}) # Настройте для продакшена
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False) if BOT_TOKEN else None
 
-# --- Telegram Data Validation ---
 def validate_init_data(init_data_str, bot_token):
     try:
         parsed_data = dict(parse_qs(init_data_str))
@@ -111,7 +106,6 @@ def validate_init_data(init_data_str, bot_token):
         logger.error(f"InitData validation error: {e}")
         return None
 
-# --- Telegram Bot Handlers ---
 if bot:
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
@@ -133,7 +127,7 @@ if bot:
         try:
             parts = message.text.split()
             if len(parts) != 3:
-                bot.reply_to(message, "Неверный формат. Используйте: `/add @username сумма`", parse_mode="Markdown")
+                bot.reply_to(message, "Неверный формат. Используйте: `/add @username сумма_в_TON`", parse_mode="Markdown")
                 return
             
             target_username = parts[1].replace('@', '').strip().lower()
@@ -155,8 +149,8 @@ if bot:
             db.add(new_deposit)
             db.commit()
 
-            bot.reply_to(message, f"✅ Успешно добавлено ${amount_to_add:.2f} пользователю @{target_username}. Новый баланс: ${target_user.balance:.2f}")
-            bot.send_message(target_user.telegram_id, f"🎉 Администратор пополнил ваш баланс на ${amount_to_add:.2f}!")
+            bot.reply_to(message, f"✅ Успешно добавлено {amount_to_add:.4f} TON пользователю @{target_username}. Новый баланс: {target_user.balance:.4f} TON")
+            bot.send_message(target_user.telegram_id, f"🎉 Администратор пополнил ваш баланс на {amount_to_add:.4f} TON!")
         except ValueError:
             bot.reply_to(message, "Неверная сумма. Укажите число.")
         except Exception as e:
@@ -175,18 +169,17 @@ if bot:
         payment = message.successful_payment
         user_id = message.from_user.id
         stars_amount = payment.total_amount
-        # Примерная конвертация, можно настроить
-        balance_to_add = stars_amount / 10 
+        balance_to_add = Decimal(str(stars_amount)) / Decimal(str(TON_TO_STARS_RATE))
 
         db = SessionLocal()
         try:
             user = db.query(User).filter(User.telegram_id == user_id).first()
             if user:
-                user.balance += balance_to_add
-                new_deposit = Deposit(user_id=user_id, amount=balance_to_add, deposit_type='STARS', status='completed')
+                user.balance = float(Decimal(str(user.balance)) + balance_to_add)
+                new_deposit = Deposit(user_id=user_id, amount=float(balance_to_add), deposit_type='STARS', status='completed')
                 db.add(new_deposit)
                 db.commit()
-                bot.send_message(user_id, f"✅ Оплата прошла успешно! Ваш баланс пополнен на ${balance_to_add:.2f}.")
+                bot.send_message(user_id, f"✅ Оплата прошла успешно! Ваш баланс пополнен на {float(balance_to_add):.4f} TON.")
             else:
                 logger.error(f"User {user_id} not found after successful Stars payment.")
         except Exception as e:
@@ -195,49 +188,36 @@ if bot:
         finally:
             db.close()
 
-# --- API Routes ---
 @app.route('/api/user_data', methods=['POST'])
 def get_user_data():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
-    if not auth_data:
-        return jsonify({"error": "Authentication failed"}), 401
+    if not auth_data: return jsonify({"error": "Authentication failed"}), 401
     
     user_id = auth_data['id']
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         if not user:
-            user = User(
-                telegram_id=user_id,
-                username=auth_data.get('username'),
-                first_name=auth_data.get('first_name')
-            )
+            user = User(telegram_id=user_id, username=auth_data.get('username'), first_name=auth_data.get('first_name'))
             db.add(user)
             db.commit()
             db.refresh(user)
         
-        return jsonify({
-            "id": user.telegram_id,
-            "username": user.username,
-            "first_name": user.first_name,
-            "balance": user.balance
-        })
+        return jsonify({"id": user.telegram_id, "username": user.username, "first_name": user.first_name, "balance": user.balance})
     finally:
         db.close()
 
 @app.route('/api/plinko_drop', methods=['POST'])
 def plinko_drop():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
-    if not auth_data:
-        return jsonify({"error": "Authentication failed"}), 401
+    if not auth_data: return jsonify({"error": "Authentication failed"}), 401
 
     user_id = auth_data['id']
     data = flask_request.get_json()
     bet_amount = Decimal(str(data.get('bet', 0)))
     risk = data.get('risk', 'medium')
 
-    if risk not in PLINKO_CONFIGS:
-        return jsonify({"error": "Invalid risk level"}), 400
+    if risk not in PLINKO_CONFIGS: return jsonify({"error": "Invalid risk level"}), 400
 
     db = SessionLocal()
     try:
@@ -245,40 +225,19 @@ def plinko_drop():
         if not user or Decimal(str(user.balance)) < bet_amount:
             return jsonify({"error": "Insufficient balance"}), 400
 
-        # --- Server-side game logic ---
         config = PLINKO_CONFIGS[risk]
         rows = config['rows']
-        
-        # Симуляция падения: N рядов = N выборов (влево -1, вправо +1)
-        # Итоговая позиция - это сумма смещений
         final_pos_offset = sum(secrets.choice([-1, 1]) for _ in range(rows))
-        
-        # Преобразование смещения в индекс массива множителей
         center_index = len(config['multipliers']) // 2
         final_index = center_index + final_pos_offset
         final_index = max(0, min(len(config['multipliers']) - 1, final_index))
-        
         multiplier = Decimal(str(config['multipliers'][final_index]))
         winnings = bet_amount * multiplier
-
-        # Обновление баланса
         user.balance = float(Decimal(str(user.balance)) - bet_amount + winnings)
-
-        # Логирование игры
-        drop_log = PlinkoDrop(
-            user_id=user_id, bet_amount=float(bet_amount), risk_level=risk,
-            multiplier_won=float(multiplier), winnings=float(winnings)
-        )
+        drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
         db.add(drop_log)
         db.commit()
-
-        return jsonify({
-            "status": "success",
-            "multiplier": float(multiplier),
-            "winnings": float(winnings),
-            "new_balance": user.balance,
-            "final_slot_index": final_index # Отправляем индекс для подсветки на фронте
-        })
+        return jsonify({"status": "success", "multiplier": float(multiplier), "winnings": float(winnings), "new_balance": user.balance, "final_slot_index": final_index})
     finally:
         db.close()
 
@@ -286,24 +245,14 @@ def plinko_drop():
 def initiate_ton_deposit():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data: return jsonify({"error": "Auth failed"}), 401
-
     user_id = auth_data['id']
     unique_comment = f"plnko_{secrets.token_hex(4)}"
-    
     db = SessionLocal()
     try:
-        new_deposit = Deposit(
-            user_id=user_id, amount=0, deposit_type='TON', 
-            status='pending', unique_comment=unique_comment,
-            expires_at=dt.now(timezone.utc) + timedelta(minutes=30)
-        )
+        new_deposit = Deposit(user_id=user_id, amount=0, deposit_type='TON', status='pending', unique_comment=unique_comment, expires_at=dt.now(timezone.utc) + timedelta(minutes=30))
         db.add(new_deposit)
         db.commit()
-        return jsonify({
-            "status": "success",
-            "recipient_address": DEPOSIT_WALLET_ADDRESS,
-            "comment": unique_comment
-        })
+        return jsonify({"status": "success", "recipient_address": DEPOSIT_WALLET_ADDRESS, "comment": unique_comment})
     finally:
         db.close()
 
@@ -311,35 +260,25 @@ def initiate_ton_deposit():
 def verify_ton_deposit():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data: return jsonify({"error": "Auth failed"}), 401
-
     user_id = auth_data['id']
     data = flask_request.get_json()
     comment = data.get('comment')
-    
     db = SessionLocal()
     try:
         pdep = db.query(Deposit).filter(Deposit.user_id == user_id, Deposit.unique_comment == comment, Deposit.status == 'pending').first()
-        if not pdep:
-            return jsonify({"status": "not_found", "message": "Deposit request not found or already processed."})
-
+        if not pdep: return jsonify({"status": "not_found", "message": "Deposit request not found or already processed."})
         if pdep.expires_at < dt.now(timezone.utc):
-            pdep.status = 'expired'
-            db.commit()
-            return jsonify({"status": "expired", "message": "Deposit request has expired."})
-        
+            pdep.status = 'expired'; db.commit(); return jsonify({"status": "expired", "message": "Deposit request has expired."})
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         tx = loop.run_until_complete(check_blockchain_for_tx(comment))
         loop.close()
-
         if tx:
             amount_credited = Decimal(tx.in_msg.info.value_coins) / Decimal('1e9')
             user = db.query(User).filter(User.telegram_id == user_id).first()
             user.balance = float(Decimal(str(user.balance)) + amount_credited)
-            pdep.status = 'completed'
-            pdep.amount = float(amount_credited)
-            db.commit()
-            return jsonify({"status": "success", "message": f"Credited ${amount_credited:.4f}", "new_balance": user.balance})
+            pdep.status = 'completed'; pdep.amount = float(amount_credited); db.commit()
+            return jsonify({"status": "success", "message": f"Credited {amount_credited:.4f} TON", "new_balance": user.balance})
         else:
             return jsonify({"status": "pending", "message": "Transaction not found yet. Please wait a moment and try again."})
     finally:
@@ -354,11 +293,11 @@ async def check_blockchain_for_tx(comment):
         for tx in txs:
             if tx.in_msg and tx.in_msg.body:
                 try:
-                    tx_comment = tx.in_msg.body.load_snake_string()
-                    if tx_comment == comment:
-                        return tx
-                except:
-                    continue
+                    tx_comment_slice = tx.in_msg.body.begin_parse()
+                    if tx_comment_slice.remaining_bits >= 32 and tx_comment_slice.load_uint(32) == 0:
+                        tx_comment = tx_comment_slice.load_snake_string()
+                        if tx_comment == comment: return tx
+                except: continue
         return None
     finally:
         if provider: await provider.close_all()
@@ -367,29 +306,26 @@ async def check_blockchain_for_tx(comment):
 def create_stars_invoice():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data: return jsonify({"error": "Auth failed"}), 401
-
     data = flask_request.get_json()
     stars_amount = int(data.get('amount', 0))
-
-    if not (1 <= stars_amount <= 10000):
-        return jsonify({"error": "Amount must be between 1 and 10000 Stars"}), 400
+    if not (1 <= stars_amount <= 10000): return jsonify({"error": "Amount must be between 1 and 10000 Stars"}), 400
+    
+    ton_equivalent = Decimal(str(stars_amount)) / Decimal(str(TON_TO_STARS_RATE))
 
     invoice_link = bot.create_invoice_link(
-        title=f"Покупка ${stars_amount / 10:.2f}",
+        title=f"Покупка {ton_equivalent:.4f} TON",
         description=f"Пополнение баланса Plinko на {stars_amount} Stars.",
         payload=f"plinko-stars-deposit-{auth_data['id']}-{secrets.token_hex(4)}",
-        provider_token="", # Для XTR токен не нужен, но поле обязательно
+        provider_token=PAYMENT_PROVIDER_TOKEN,
         currency="XTR",
         prices=[types.LabeledPrice(label=f"{stars_amount} Stars", amount=stars_amount)]
     )
     return jsonify({"status": "success", "invoice_link": invoice_link})
 
-# --- Webhook Setup ---
 def setup_telegram_webhook(flask_app):
     if not bot: return
     WEBHOOK_PATH = f'/{BOT_TOKEN}'
     FULL_WEBHOOK_URL = f"{RENDER_EXTERNAL_URL}{WEBHOOK_PATH}"
-
     @flask_app.route(WEBHOOK_PATH, methods=['POST'])
     def webhook_handler():
         if flask_request.headers.get('content-type') == 'application/json':
@@ -398,11 +334,14 @@ def setup_telegram_webhook(flask_app):
             bot.process_new_updates([update])
             return '', 200
         flask_abort(403)
-    
     try:
-        bot.remove_webhook()
-        bot.set_webhook(url=FULL_WEBHOOK_URL)
-        logger.info(f"Webhook set to {FULL_WEBHOOK_URL}")
+        current_webhook_info = bot.get_webhook_info()
+        if current_webhook_info.url != FULL_WEBHOOK_URL:
+            bot.remove_webhook()
+            bot.set_webhook(url=FULL_WEBHOOK_URL)
+            logger.info(f"Webhook set to {FULL_WEBHOOK_URL}")
+        else:
+            logger.info("Webhook already set correctly.")
     except Exception as e:
         logger.error(f"Error setting webhook: {e}")
 
