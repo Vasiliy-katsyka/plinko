@@ -5,6 +5,7 @@ import hmac
 import hashlib
 import json
 import secrets
+import time
 import asyncio
 from urllib.parse import unquote, parse_qs
 from datetime import datetime as dt, timezone, timedelta
@@ -185,6 +186,8 @@ def get_user_data():
     finally:
         db.close()
 
+FREE_DROP_BET_AMOUNT = Decimal('0.01')
+
 @app.route('/api/claim_free_drop', methods=['POST'])
 def claim_free_drop():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
@@ -194,11 +197,45 @@ def claim_free_drop():
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         if not user: return jsonify({"error": "User not found"}), 404
+        
         now = dt.now(timezone.utc)
-        if user.last_free_drop_claim and (now - user.last_free_drop_claim) < timedelta(hours=24):
-            return jsonify({"status": "error", "message": "Вы уже получали бесплатный бросок за последние 24 часа."})
-        user.last_free_drop_claim = now; db.commit()
-        return jsonify({"status": "success", "message": "Бесплатный бросок получен!", "new_claim_time": now.isoformat()})
+        if user.last_free_drop_claim and (now - user.last_free_drop_claim) < timedelta(seconds=10):
+            return jsonify({"status": "error", "message": "Пожалуйста, подождите 10 секунд."})
+
+        user.last_free_drop_claim = now
+        
+        # --- START: Added Plinko Logic ---
+        risk = 'medium' # Free drops are always medium risk
+        config = PLINKO_CONFIGS[risk]
+        rows = config['rows']
+        
+        final_pos_offset = sum(secrets.choice([-1, 1]) for _ in range(rows))
+        center_index = len(config['multipliers']) // 2
+        final_index = max(0, min(len(config['multipliers']) - 1, center_index + final_pos_offset))
+        
+        multiplier = Decimal(str(config['multipliers'][final_index]))
+        winnings = FREE_DROP_BET_AMOUNT * multiplier
+        
+        # NOTE: We DO NOT subtract the bet amount. It's a free drop.
+        user.balance = float(Decimal(str(user.balance)) + winnings)
+        
+        drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(FREE_DROP_BET_AMOUNT), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
+        db.add(drop_log)
+        db.commit()
+        # --- END: Added Plinko Logic ---
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Бесплатный бросок получен!", 
+            "new_claim_time": now.isoformat(),
+            # Also return the game result so the frontend can animate it
+            "game_result": {
+                "multiplier": float(multiplier),
+                "winnings": float(winnings),
+                "new_balance": user.balance,
+                "final_slot_index": final_index
+            }
+        })
     finally:
         db.close()
 
@@ -243,30 +280,55 @@ def verify_ton_deposit():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data: return jsonify({"error": "Auth failed"}), 401
     user_id = auth_data['id']; data = flask_request.get_json(); comment = data.get('comment'); db = SessionLocal()
-    try:
-        pdep = db.query(Deposit).filter(Deposit.user_id == user_id, Deposit.unique_comment == comment, Deposit.status == 'pending').first()
-        if not pdep: return jsonify({"status": "not_found", "message": "Deposit request not found or already processed."})
-        if pdep.expires_at < dt.now(timezone.utc):
-            pdep.status = 'expired'; db.commit(); return jsonify({"status": "expired", "message": "Deposit request has expired."})
-        loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
-        tx = loop.run_until_complete(check_blockchain_for_tx(comment)); loop.close()
-        if tx:
-            amount_credited = Decimal(tx.in_msg.info.value_coins) / Decimal('1e9')
-            user = db.query(User).filter(User.telegram_id == user_id).first()
-            user.balance = float(Decimal(str(user.balance)) + amount_credited)
-            pdep.status = 'completed'; pdep.amount = float(amount_credited); db.commit()
-            return jsonify({"status": "success", "message": f"Credited {amount_credited:.4f} TON", "new_balance": user.balance})
-        else:
-            return jsonify({"status": "pending", "message": "Transaction not found yet. Please wait a moment and try again."})
-    finally:
-        db.close()
+    
+    # --- START: Added Retry Logic ---
+    max_retries = 3
+    retry_delay_seconds = 5
+    
+    for attempt in range(max_retries):
+        try:
+            # The original logic is now inside the loop
+            pdep = db.query(Deposit).filter(Deposit.user_id == user_id, Deposit.unique_comment == comment, Deposit.status == 'pending').first()
+            if not pdep: return jsonify({"status": "not_found", "message": "Deposit request not found or already processed."})
+            if pdep.expires_at < dt.now(timezone.utc):
+                pdep.status = 'expired'; db.commit(); return jsonify({"status": "expired", "message": "Deposit request has expired."})
+            
+            loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
+            tx = loop.run_until_complete(check_blockchain_for_tx(comment)); loop.close()
+            
+            if tx:
+                amount_credited = Decimal(tx.in_msg.info.value_coins) / Decimal('1e9')
+                user = db.query(User).filter(User.telegram_id == user_id).first()
+                user.balance = float(Decimal(str(user.balance)) + amount_credited)
+                pdep.status = 'completed'; pdep.amount = float(amount_credited); db.commit()
+                db.close() # Close DB connection before returning
+                return jsonify({"status": "success", "message": f"Credited {amount_credited:.4f} TON", "new_balance": user.balance})
+            else:
+                if attempt < max_retries - 1:
+                    logger.info(f"Tx not found for comment {comment} on attempt {attempt + 1}. Retrying in {retry_delay_seconds}s...")
+                    db.close() # Close session before sleeping
+                    time.sleep(retry_delay_seconds)
+                    db = SessionLocal() # Reopen session for next attempt
+                else:
+                    db.close()
+                    return jsonify({"status": "pending", "message": "Transaction not found yet. Please wait a moment and try again."})
+
+        except Exception as e:
+            logger.error(f"Error during deposit verification: {e}")
+            if 'db' in locals() and db.is_active: db.close()
+            return jsonify({"status": "error", "message": "An unexpected error occurred during verification."}), 500
+    # --- END: Added Retry Logic ---
+    
+    # Fallback in case loop finishes without returning (should not happen)
+    if 'db' in locals() and db.is_active: db.close()
+    return jsonify({"status": "pending", "message": "Could not find transaction after multiple attempts."})
 
 async def check_blockchain_for_tx(comment):
     provider = None
     try:
         provider = LiteBalancer.from_mainnet_config(trust_level=2)
         await provider.start_up()
-        txs = await provider.get_transactions(DEPOSIT_WALLET_ADDRESS, count=50)
+        txs = await provider.get_transactions(DEPOSIT_WALLET_ADDRESS, count=200)
         for tx in txs:
             if tx.in_msg and tx.in_msg.body:
                 try:
