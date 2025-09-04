@@ -183,13 +183,21 @@
         <div class="modal-content">
             <h3>Депозит TON</h3>
             <div class="modal-body" style="text-align: center;">
-                <p>Отправьте любую сумму TON на адрес ниже, **обязательно** указав этот уникальный комментарий:</p>
-                <div style="margin: 10px 0;"><strong>Адрес:</strong><br><input type="text" id="ton-deposit-address" readonly></div>
-                <div style="margin: 10px 0;"><strong>Комментарий:</strong><br><input type="text" id="ton-deposit-comment" readonly></div>
-                <div id="ton-deposit-loader" class="loader" style="display:none;"></div><p id="ton-deposit-status"></p>
+                <p>Нажмите "Открыть кошелек", чтобы создать транзакцию. Сумма будет взята из поля на экране профиля.</p>
+                
+                <div style="margin: 15px 0;">
+                    <strong style="color: var(--text-muted);">ВАШ УНИКАЛЬНЫЙ КОММЕНТАРИЙ:</strong><br>
+                    <input type="text" id="ton-deposit-comment" readonly style="background-color: var(--bg-color); border-color: #ff9800; text-align: center; font-weight: bold; margin-top: 5px;">
+                    <p style="color: #ff9800; font-size: 0.8rem; margin-top: 5px;"><strong>НЕ ИЗМЕНЯЙТЕ ЭТОТ КОММЕНТАРИЙ В КОШЕЛЬКЕ!</strong></p>
+                </div>
+                
+                <div id="ton-deposit-loader" class="loader" style="display:none;"></div>
+                <p id="ton-deposit-status"></p>
             </div>
-            <div class="modal-actions">
-                <button id="verify-ton-deposit-btn" class="main-button">Я оплатил</button>
+            <div class="modal-actions" style="flex-direction: column; gap: 12px;">
+                <!-- This is the new primary button -->
+                <button id="open-wallet-btn" class="main-button">Открыть кошелек</button>
+                <button id="verify-ton-deposit-btn" class="main-button" style="background: var(--surface-color-2);">Я уже оплатил (Проверить)</button>
                 <button id="close-ton-deposit-modal-btn" class="main-button" style="background: var(--stepper-bg);">Отмена</button>
             </div>
         </div>
@@ -227,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isAutoDropping = false;
     let autoDropCount = 0;
     let autoDropIntervalId = null;
+    let currentDepositInfo = { address: '', comment: '' };
     
     const riskLevelConfigs = {
         low: {
@@ -269,13 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         closeGiftsModalBtn: document.getElementById('close-gifts-modal-btn'),
         timerElement: document.getElementById('timer'), claimFreeDropBtn: document.getElementById('claim-free-drop-btn'),
     };
-    selectors.tonDepositAddress.addEventListener('click', (e) => copyToClipboard(e.target, 'Адрес'));
-    selectors.tonDepositComment.addEventListener('click', (e) => copyToClipboard(e.target, 'Комментарий'));
     selectors.autoDropButton.addEventListener('click', handleAutoDrop);
-    
-    // Also make the inputs read-only to prevent accidental edits and improve UX
-    selectors.tonDepositAddress.setAttribute('readonly', true);
-    selectors.tonDepositComment.setAttribute('readonly', true);
     
     async function apiRequest(endpoint, method = 'POST', body = {}) {
         const config = { method, headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData } };
@@ -566,16 +569,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     async function handleTopUpTON() {
+        // Check if an amount is entered on the profile screen
+        const amountStr = selectors.depositAmountInput.value;
+        if (amountStr && (isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0)) {
+            tg.showAlert("Пожалуйста, введите корректную сумму для пополнения или оставьте поле пустым.");
+            return;
+        }
+    
         selectors.topUpTonBtn.disabled = true;
         selectors.tonDepositStatus.textContent = "Создание запроса...";
         selectors.tonDepositLoader.style.display = 'block';
         selectors.depositTonModal.style.display = 'flex';
+    
         try {
             const res = await apiRequest('/api/initiate_ton_deposit', 'POST', {});
-            selectors.tonDepositAddress.value = res.recipient_address;
+            // Store the address and comment for later use
+            currentDepositInfo = {
+                address: res.recipient_address,
+                comment: res.comment
+            };
+            
+            // Update the UI
             selectors.tonDepositComment.value = res.comment;
-            selectors.tonDepositStatus.textContent = "Скопируйте адрес и комментарий.";
-        } catch(e) {
+            selectors.tonDepositStatus.textContent = "Готово к отправке.";
+    
+        } catch (e) {
             selectors.tonDepositStatus.textContent = "Ошибка. Попробуйте снова.";
         } finally {
             selectors.topUpTonBtn.disabled = false;
@@ -583,19 +601,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     async function verifyTONDeposit() {
+        if (!currentDepositInfo.comment) {
+            tg.showAlert("Ошибка: комментарий для проверки не найден. Пожалуйста, начните процесс пополнения заново.");
+            return;
+        }
+    
         selectors.verifyTonDepositBtn.disabled = true;
         selectors.tonDepositStatus.textContent = "Проверяем транзакцию в блокчейне...";
         selectors.tonDepositLoader.style.display = 'block';
         try {
-            const res = await apiRequest('/api/verify_ton_deposit', 'POST', { comment: selectors.tonDepositComment.value });
+            // Use the stored comment instead of reading from the input
+            const res = await apiRequest('/api/verify_ton_deposit', 'POST', { comment: currentDepositInfo.comment });
             if (res.status === 'success') {
                 tg.showAlert(res.message);
                 currentUser.balance = res.new_balance;
                 updateBalanceUI();
                 selectors.depositTonModal.style.display = 'none';
-            } else { selectors.tonDepositStatus.textContent = res.message; }
-        } catch(e) { selectors.tonDepositStatus.textContent = "Ошибка проверки. Попробуйте еще раз.";
-        } finally { selectors.verifyTonDepositBtn.disabled = false; selectors.tonDepositLoader.style.display = 'none'; }
+            } else {
+                selectors.tonDepositStatus.textContent = res.message;
+            }
+        } catch (e) {
+            selectors.tonDepositStatus.textContent = "Ошибка проверки. Попробуйте еще раз.";
+        } finally {
+            selectors.verifyTonDepositBtn.disabled = false;
+            selectors.tonDepositLoader.style.display = 'none';
+        }
     }
     async function handleTopUpStars() {
         const amount = parseInt(selectors.depositAmountInput.value);
@@ -628,7 +658,37 @@ document.addEventListener('DOMContentLoaded', () => {
     selectors.verifyTonDepositBtn.addEventListener('click', verifyTONDeposit);
     selectors.closeTonDepositModalBtn.addEventListener('click', () => selectors.depositTonModal.style.display = 'none');
     selectors.claimFreeDropBtn.addEventListener('click', handleClaimFreeDrop);
+    selectors.openWalletBtn = document.getElementById('open-wallet-btn');
+
+    // Then add the event listener
+    selectors.openWalletBtn.addEventListener('click', () => {
+        if (!currentDepositInfo.address || !currentDepositInfo.comment) {
+            tg.showAlert("Ошибка: данные для депозита не были загружены. Пожалуйста, закройте и попробуйте снова.");
+            return;
+        }
     
+        const amountStr = selectors.depositAmountInput.value;
+        let amountNanoTON = '';
+    
+        if (amountStr && parseFloat(amountStr) > 0) {
+            // Convert TON to nanotons (1 TON = 10^9 nanotons)
+            amountNanoTON = `&amount=${Math.floor(parseFloat(amountStr) * 1e9)}`;
+        }
+    
+        const encodedComment = encodeURIComponent(currentDepositInfo.comment);
+        
+        // Construct the ton:// URL
+        const tonUrl = `ton://transfer/${currentDepositInfo.address}?text=${encodedComment}${amountNanoTON}`;
+        
+        // Open the link
+        // Using an anchor tag is more robust on some mobile devices
+        const link = document.createElement('a');
+        link.href = tonUrl;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
     initializeApp();
 });
 </script>
