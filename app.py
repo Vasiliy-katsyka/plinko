@@ -22,7 +22,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 from pytoniq import LiteBalancer
-from ton.utils import b64str_to_bytes
+import base64
 from ton.boc import Cell
 
 # --- Configuration ---
@@ -363,46 +363,50 @@ def verify_tonconnect_deposit():
     
     user_id = auth_data['id']
     data = flask_request.get_json()
-    boc = data.get('boc')
+    boc_str = data.get('boc')
 
-    if not boc:
+    if not boc_str:
         return jsonify({"error": "BOC is missing"}), 400
 
     db = SessionLocal()
     try:
-        # 1. Parse the transaction BOC
-        cell = Cell.one_from_boc(b64str_to_bytes(boc))
+        # 1. Decode the Base64 BOC using the standard library
+        cell_bytes = base64.b64decode(boc_str)
+        cell = Cell.one_from_boc(cell_bytes)
         tx_hash = cell.hash.hex()
 
-        # 2. Check if this transaction has already been processed (replay attack prevention)
+        # 2. Check if this transaction has already been processed
         existing_tx = db.query(TonConnectTx).filter(TonConnectTx.hash == tx_hash).first()
         if existing_tx:
             return jsonify({"error": "Transaction already processed"}), 400
 
-        # 3. Further parse to get details (this is a simplified example)
-        # A full BOC parse is complex. We'll make a key assumption: the first message is the deposit.
+        # 3. Robustly parse the message from the BOC
+        # The main cell (external message) contains a message cell in its first reference.
         message_cell = cell.refs[0]
-        # info -> dest -> amount
-        dest_addr_slice = message_cell.refs[0].begin_parse().load_bits(267)
-        dest_addr_raw = f"0:{dest_addr_slice.hex()}"
-        
-        amount_nanotons = message_cell.refs[0].begin_parse().load_bits(8).load_coins()
+        parsed_message = Message.deserialize(message_cell.begin_parse())
+
+        # 4. Extract destination address and amount safely
+        # The .info attribute contains all the key details
+        dest_addr = parsed_message.info.dest
+        amount_nanotons = parsed_message.info.value.grams
+
+        # Convert to user-friendly format for comparison
+        dest_addr_user_friendly = dest_addr.to_string(is_user_friendly=True, is_bounceable=True, is_test_only=False)
         amount_ton = Decimal(str(amount_nanotons)) / Decimal('1e9')
 
-        # 4. Verify the destination is our wallet
-        # NOTE: This simple address check may need adjustment for different address formats (bounceable/non-bounceable)
-        if DEPOSIT_WALLET_ADDRESS not in dest_addr_raw:
-             logger.warning(f"TON Connect tx {tx_hash} sent to wrong address: {dest_addr_raw}")
+        # 5. Verify the destination is our wallet
+        if dest_addr_user_friendly != DEPOSIT_WALLET_ADDRESS:
+             logger.warning(f"TON Connect tx {tx_hash} sent to wrong address: {dest_addr_user_friendly}")
              return jsonify({"error": "Transaction was sent to the wrong address"}), 400
 
-        # 5. All checks passed, credit the user
+        # 6. Credit the user's balance
         user = db.query(User).filter(User.telegram_id == user_id).first()
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        user.balance += float(amount_ton)
+        user.balance = float(Decimal(str(user.balance)) + amount_ton)
         
-        # 6. Log the transaction to prevent replay
+        # 7. Log the processed transaction hash
         new_tx = TonConnectTx(hash=tx_hash, user_id=user_id, amount=float(amount_ton))
         db.add(new_tx)
         db.commit()
@@ -416,7 +420,7 @@ def verify_tonconnect_deposit():
     except Exception as e:
         db.rollback()
         logger.error(f"Error verifying TON Connect deposit: {e}")
-        return jsonify({"error": "Failed to process transaction. It may be invalid."}), 500
+        return jsonify({"error": "Failed to process transaction. It may be invalid or in an unexpected format."}), 500
     finally:
         db.close()
 
