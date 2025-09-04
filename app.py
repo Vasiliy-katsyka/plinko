@@ -10,6 +10,7 @@ import asyncio
 from urllib.parse import unquote, parse_qs
 from datetime import datetime as dt, timezone, timedelta
 from decimal import Decimal
+import random
 
 from flask import Flask, jsonify, request as flask_request, abort as flask_abort
 from flask_cors import CORS
@@ -30,11 +31,9 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://plinko-4vm7.onrender.com")
 DEPOSIT_WALLET_ADDRESS = os.environ.get("DEPOSIT_WALLET_ADDRESS")
 ADMIN_IDS_STR = os.environ.get("ADMIN_USER_IDS", "")
+REQUIRED_CHANNELS = ['@giftplinko', '@CompactTelegram', '@giftnewstoday', '@myzone196']
+WEB_APP_URL = "https://vasiliy-katsyka.github.io/plinko"
 ADMIN_USER_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',') if admin_id.strip()]
-
-#
-# === NEW CONFIGURATION TO PASTE INTO app.py ===
-#
 
 PLINKO_CONFIGS = {
     'low': {
@@ -122,13 +121,37 @@ def validate_init_data(init_data_str, bot_token):
         return None
 
 if bot:
+    def check_subscription(user_id):
+        """Checks if a user is subscribed to all required channels."""
+        try:
+            for channel in REQUIRED_CHANNELS:
+                member = bot.get_chat_member(chat_id=channel, user_id=user_id)
+                if member.status not in ['creator', 'administrator', 'member']:
+                    return False
+            return True
+        except Exception as e:
+            logger.error(f"Error checking subscription for user {user_id}: {e}")
+            return False # Fail-safe: if a channel is private or bot is not admin, deny access
+    
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
-        markup = types.InlineKeyboardMarkup()
-        web_app_info = types.WebAppInfo(url=f"{RENDER_EXTERNAL_URL}")
-        app_button = types.InlineKeyboardButton(text="🎮 Открыть Plinko", web_app=web_app_info)
-        markup.add(app_button)
-        bot.send_message(message.chat.id, "Добро пожаловать в Plinko! Нажмите кнопку ниже, чтобы начать игру.", reply_markup=markup)
+        user_id = message.from_user.id
+        if check_subscription(user_id):
+            # User is subscribed, send the main welcome message
+            markup = types.InlineKeyboardMarkup()
+            web_app_info = types.WebAppInfo(url=WEB_APP_URL) # Use the new URL
+            app_button = types.InlineKeyboardButton(text="🎮 Открыть Plinko", web_app=web_app_info)
+            markup.add(app_button)
+            bot.send_message(message.chat.id, "Добро пожаловать в Plinko! Нажмите кнопку ниже, чтобы начать игру.", reply_markup=markup)
+        else:
+            # User is not subscribed, send the subscription prompt
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            # Create a button for each channel
+            for i, channel in enumerate(REQUIRED_CHANNELS):
+                markup.add(types.InlineKeyboardButton(text=f"Канал {i+1}", url=f"https://t.me/{channel[1:]}"))
+            # Add the "Check Subscription" button with a callback
+            markup.add(types.InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_sub"))
+            bot.send_message(message.chat.id, "Для доступа к боту, пожалуйста, подпишитесь на наши каналы:", reply_markup=markup)
 
     @bot.message_handler(commands=['add'])
     def add_balance_command(message):
@@ -163,6 +186,20 @@ if bot:
             if 'db' in locals() and db.is_active:
                 db.close()
 
+    @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
+    def callback_check_subscription(call):
+        user_id = call.from_user.id
+        if check_subscription(user_id):
+            # Subscription is now valid, send the welcome message
+            bot.answer_callback_query(call.id, "Спасибо за подписку!")
+            # Delete the subscription prompt message
+            bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+            # Send the main start message
+            send_welcome(call.message)
+        else:
+            # Still not subscribed
+            bot.answer_callback_query(call.id, "Вы еще не подписались на все каналы. Пожалуйста, проверьте снова.", show_alert=True)
+    
     @bot.pre_checkout_query_handler(func=lambda query: True)
     def pre_checkout_process(pre_checkout_query: types.PreCheckoutQuery):
         bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
@@ -199,7 +236,16 @@ def get_user_data():
             user = User(telegram_id=user_id, username=auth_data.get('username'), first_name=auth_data.get('first_name'))
             db.add(user); db.commit(); db.refresh(user)
         last_claim_iso = user.last_free_drop_claim.isoformat() if user.last_free_drop_claim else None
-        return jsonify({ "id": user.telegram_id, "username": user.username, "first_name": user.first_name, "balance": user.balance, "last_free_drop_claim": last_claim_iso })
+        
+        # ADD 'photo_url' to the response
+        return jsonify({ 
+            "id": user.telegram_id, 
+            "username": user.username, 
+            "first_name": user.first_name, 
+            "balance": user.balance, 
+            "last_free_drop_claim": last_claim_iso,
+            "photo_url": auth_data.get('photo_url') # <-- ADD THIS LINE
+        })
     finally:
         db.close()
 
@@ -268,8 +314,28 @@ def plinko_drop():
         user = db.query(User).filter(User.telegram_id == user_id).first()
         if not user or Decimal(str(user.balance)) < bet_amount:
             return jsonify({"error": "Insufficient balance"}), 400
+        
+        # --- START: NEW BIASED RANDOM LOGIC ---
         config = PLINKO_CONFIGS[risk]; rows = config['rows']
-        final_pos_offset = sum(secrets.choice([-1, 1]) for _ in range(rows))
+        
+        # RTP Control: A higher bias means the ball is more likely to move to the center.
+        # 0.0 = Fair 50/50 chance. 0.1 = 60/40 chance to move to center. 0.2 = 70/30.
+        CENTER_BIAS = 0.1 
+
+        horizontal_offset = 0
+        for _ in range(rows):
+            if horizontal_offset > 0: # Ball is on the right, bias it left
+                direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
+            elif horizontal_offset < 0: # Ball is on the left, bias it right
+                direction = random.choices([-1, 1], weights=[0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
+            else: # Ball is in the center, fair choice
+                direction = random.choice([-1, 1])
+            horizontal_offset += direction
+
+        # The final position is determined by the total offset
+        final_pos_offset = horizontal_offset
+        # --- END: NEW BIASED RANDOM LOGIC ---
+
         center_index = len(config['multipliers']) // 2
         final_index = max(0, min(len(config['multipliers']) - 1, center_index + final_pos_offset))
         multiplier = Decimal(str(config['multipliers'][final_index])); winnings = bet_amount * multiplier
