@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Плинко</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
@@ -158,13 +158,37 @@
         <div id="profile-view" class="view">
             <header><h1>Профиль</h1></header>
             <div class="panel">
-                <div id="profile-avatar">?</div>
-                <h2 id="profile-name">Пользователь</h2><p id="profile-username">@username</p>
-                <div class="balance-display"><label>Баланс</label><div id="profile-balance" class="value">0.00 TON</div></div>
+                <div id="profile-avatar" style="overflow: hidden;">?</div>
+                <h2 id="profile-name">Пользователь</h2>
+                <p id="profile-username">@username</p>
+                <div class="balance-display">
+                    <label>Баланс</label>
+                    <div id="profile-balance" class="value">0.00 TON</div>
+                </div>
                 <h3 style="text-align:center; margin:15px 0 10px; font-size:1.1rem; color:var(--text-muted);">Пополнить баланс</h3>
+                
+                <!-- START: NEW TON CONNECT UI SECTION -->
+                <div id="ton-connect-status" style="display:none; text-align: center; background-color: var(--bg-color); padding: 8px; border-radius: 12px; margin-bottom: 10px; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Подключен кошелек:</div>
+                    <div id="wallet-address" style="font-weight: 600; font-size: 0.9rem; margin-bottom: 5px; word-break: break-all;"></div>
+                    <button id="disconnect-wallet-btn" style="background: #e53e3e; color: white; border: none; padding: 4px 10px; font-size: 0.8rem; border-radius: 8px; cursor: pointer;">Отключить</button>
+                </div>
+                <!-- END: NEW TON CONNECT UI SECTION -->
+        
                 <div style="display:flex; gap:10px; flex-direction: column;">
-                    <input type="number" id="deposit-amount-input" placeholder="Сумма (TON или Stars)" >
-                    <button id="topup-ton-btn" class="main-button">💎 TON</button>
+                    <input type="number" id="deposit-amount-input" placeholder="Сумма (TON или Stars)">
+                    
+                    <!-- MODIFIED TON BUTTON FOR TON CONNECT -->
+                    <button id="topup-tonconnect-btn" class="main-button">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px;">
+                            <path d="M20 7H4C2.89543 7 2 7.89543 2 9V18C2 19.1046 2.89543 20 4 20H20C21.1046 20 22 19.1046 22 18V9C22 7.89543 21.1046 7 20 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M16 7V5C16 3.89543 15.1046 3 14 3H10C8.89543 3 8 3.89543 8 5V7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M18 15C18.5523 15 19 14.5523 19 14C19 13.4477 18.5523 13 18 13C17.4477 13 17 13.4477 17 14C17 14.5523 17.4477 15 18 15Z" fill="currentColor"/>
+                        </svg>
+                        <span id="tonconnect-button-text">Подключить кошелек</span>
+                    </button>
+                    
+                    <!-- UNCHANGED STARS AND GIFTS BUTTONS -->
                     <button id="topup-stars-btn" class="main-button" style="background: var(--button-secondary-bg);">⭐ Stars</button>
                     <button id="topup-gifts-btn" class="main-button" style="background: var(--surface-color-2);">🎁 Подарками</button>
                 </div>
@@ -227,6 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let isAutoDropping = false;
     let autoDropCount = 0;
     let autoDropIntervalId = null;
+    let tonConnectUI = null;
+    let DEPOSIT_WALLET = '';
     
     const riskLevelConfigs = {
         low: {
@@ -272,6 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
     selectors.tonDepositAddress.addEventListener('click', (e) => copyToClipboard(e.target, 'Адрес'));
     selectors.tonDepositComment.addEventListener('click', (e) => copyToClipboard(e.target, 'Комментарий'));
     selectors.autoDropButton.addEventListener('click', handleAutoDrop);
+    document.getElementById('topup-tonconnect-btn').addEventListener('click', handleTonConnectDeposit);
+    document.getElementById('disconnect-wallet-btn').addEventListener('click', () => tonConnectUI.disconnect())
     
     // Also make the inputs read-only to prevent accidental edits and improve UX
     selectors.tonDepositAddress.setAttribute('readonly', true);
@@ -295,8 +323,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const userData = await apiRequest('/api/user_data', 'POST', {});
             currentUser = userData;
+            DEPOSIT_WALLET = userData.deposit_wallet; // <-- STORE THE DEPOSIT WALLET
             updateBalanceUI();
             updateProfileUI();
+            initializeTonConnect(); // <-- INITIALIZE TON CONNECT
         } catch (error) {
             console.error("Failed to load user data:", error);
             tg.showAlert("Не удалось загрузить данные пользователя. Попробуйте перезапустить приложение.");
@@ -305,7 +335,84 @@ document.addEventListener('DOMContentLoaded', () => {
         setupBoard(currentRisk);
         updateHeaderValues();
     }
-
+    function initializeTonConnect() {
+        tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: 'https://raw.githubusercontent.com/Vasiliy-katsyka/plinko/refs/heads/main/manifest.json',
+            buttonRootId: null // We will use a custom button
+        });
+    
+        // Subscribe to wallet connection status changes
+        tonConnectUI.onStatusChange(wallet => {
+            updateWalletUI(wallet);
+        });
+    }
+    function updateWalletUI(wallet) {
+        const statusContainer = document.getElementById('ton-connect-status');
+        const walletAddressEl = document.getElementById('wallet-address');
+        const buttonText = document.getElementById('tonconnect-button-text');
+    
+        if (wallet) {
+            // Connected
+            const address = wallet.account.address;
+            walletAddressEl.textContent = `${address.slice(0, 4)}...${address.slice(-4)}`;
+            statusContainer.style.display = 'block';
+            buttonText.textContent = 'Пополнить с кошелька';
+        } else {
+            // Disconnected
+            statusContainer.style.display = 'none';
+            buttonText.textContent = 'Подключить кошелек';
+        }
+    }
+    
+    // Add this function to handle the deposit process
+    async function handleTonConnectDeposit() {
+        if (!tonConnectUI.connected) {
+            tonConnectUI.openModal();
+            return;
+        }
+    
+        const amount = parseFloat(selectors.depositAmountInput.value);
+        if (isNaN(amount) || amount <= 0) {
+            tg.showAlert('Пожалуйста, введите корректную сумму для пополнения.');
+            return;
+        }
+    
+        const transaction = {
+            validUntil: Math.floor(Date.now() / 1000) + 300, // 5 minutes
+            messages: [{
+                address: DEPOSIT_WALLET,
+                amount: (amount * 1e9).toString() // Amount in nanotons
+            }]
+        };
+    
+        try {
+            const result = await tonConnectUI.sendTransaction(transaction);
+            tg.showAlert('Транзакция отправлена! Проверяем зачисление...');
+    
+            // Now, send the result to your backend for verification
+            const verificationResponse = await apiRequest('/api/verify_tonconnect_deposit', 'POST', {
+                boc: result.boc
+            });
+            
+            if (verificationResponse.status === 'success') {
+                currentUser.balance = verificationResponse.new_balance;
+                updateBalanceUI();
+                tg.HapticFeedback.notificationOccurred('success');
+                tg.showAlert(verificationResponse.message);
+            } else {
+                throw new Error(verificationResponse.error || 'Backend verification failed.');
+            }
+    
+        } catch (error) {
+            tg.HapticFeedback.notificationOccurred('error');
+            if (error.message.includes('User rejected the transaction')) {
+                 tg.showAlert('Вы отклонили транзакцию.');
+            } else {
+                 tg.showAlert(`Ошибка: ${error.message}`);
+            }
+            console.error(error);
+        }
+    }
     function updateBalanceUI() {
         const formattedBalance = `${currentUser.balance.toFixed(4)} TON`;
         selectors.balance.textContent = formattedBalance;
