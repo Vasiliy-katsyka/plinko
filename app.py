@@ -22,8 +22,6 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 from pytoniq import LiteBalancer
-import base64
-from ton.boc import Cell
 
 # --- Configuration ---
 load_dotenv()
@@ -97,13 +95,6 @@ class Deposit(Base):
     unique_comment = Column(String, nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=True)
-
-class TonConnectTx(Base):
-    __tablename__ = "tonconnect_txs"
-    hash = Column(String, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("plinko_users.telegram_id"), nullable=False)
-    amount = Column(Float, nullable=False)
-    processed_at = Column(DateTime(timezone=True), server_default=func.now())
 
 Base.metadata.create_all(bind=engine)
 
@@ -253,8 +244,7 @@ def get_user_data():
             "first_name": user.first_name, 
             "balance": user.balance, 
             "last_free_drop_claim": last_claim_iso,
-            "photo_url": auth_data.get('photo_url'),
-            "deposit_wallet": DEPOSIT_WALLET_ADDRESS
+            "photo_url": auth_data.get('photo_url') # <-- ADD THIS LINE
         })
     finally:
         db.close()
@@ -353,74 +343,6 @@ def plinko_drop():
         drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
         db.add(drop_log); db.commit()
         return jsonify({ "status": "success", "multiplier": float(multiplier), "winnings": float(winnings), "new_balance": user.balance, "final_slot_index": final_index })
-    finally:
-        db.close()
-
-@app.route('/api/verify_tonconnect_deposit', methods=['POST'])
-def verify_tonconnect_deposit():
-    auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
-    if not auth_data: return jsonify({"error": "Authentication failed"}), 401
-    
-    user_id = auth_data['id']
-    data = flask_request.get_json()
-    boc_str = data.get('boc')
-
-    if not boc_str:
-        return jsonify({"error": "BOC is missing"}), 400
-
-    db = SessionLocal()
-    try:
-        # 1. Decode the Base64 BOC using the standard library
-        cell_bytes = base64.b64decode(boc_str)
-        cell = Cell.one_from_boc(cell_bytes)
-        tx_hash = cell.hash.hex()
-
-        # 2. Check if this transaction has already been processed
-        existing_tx = db.query(TonConnectTx).filter(TonConnectTx.hash == tx_hash).first()
-        if existing_tx:
-            return jsonify({"error": "Transaction already processed"}), 400
-
-        # 3. Robustly parse the message from the BOC
-        # The main cell (external message) contains a message cell in its first reference.
-        message_cell = cell.refs[0]
-        parsed_message = Message.deserialize(message_cell.begin_parse())
-
-        # 4. Extract destination address and amount safely
-        # The .info attribute contains all the key details
-        dest_addr = parsed_message.info.dest
-        amount_nanotons = parsed_message.info.value.grams
-
-        # Convert to user-friendly format for comparison
-        dest_addr_user_friendly = dest_addr.to_string(is_user_friendly=True, is_bounceable=True, is_test_only=False)
-        amount_ton = Decimal(str(amount_nanotons)) / Decimal('1e9')
-
-        # 5. Verify the destination is our wallet
-        if dest_addr_user_friendly != DEPOSIT_WALLET_ADDRESS:
-             logger.warning(f"TON Connect tx {tx_hash} sent to wrong address: {dest_addr_user_friendly}")
-             return jsonify({"error": "Transaction was sent to the wrong address"}), 400
-
-        # 6. Credit the user's balance
-        user = db.query(User).filter(User.telegram_id == user_id).first()
-        if not user:
-            return jsonify({"error": "User not found"}), 404
-
-        user.balance = float(Decimal(str(user.balance)) + amount_ton)
-        
-        # 7. Log the processed transaction hash
-        new_tx = TonConnectTx(hash=tx_hash, user_id=user_id, amount=float(amount_ton))
-        db.add(new_tx)
-        db.commit()
-
-        return jsonify({
-            "status": "success",
-            "message": f"Successfully credited {amount_ton:.4f} TON",
-            "new_balance": user.balance
-        })
-
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error verifying TON Connect deposit: {e}")
-        return jsonify({"error": "Failed to process transaction. It may be invalid or in an unexpected format."}), 500
     finally:
         db.close()
 
