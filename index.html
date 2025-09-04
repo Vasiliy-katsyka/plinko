@@ -71,7 +71,16 @@
         .risk-button { flex-grow: 1; padding: 8px 5px; border: none; background: none; border-radius: 9px; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s ease; }
         .risk-button.active { background-color: var(--highlight-primary); color: white; }
         .main-button { width: 100%; padding: 18px 15px; font-weight: 700; font-size: 1.2rem; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color); text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.2s ease; display: flex; justify-content: center; align-items: center; background: var(--button-primary-bg); }
-        #auto-drop-button { background: var(--button-secondary-bg); flex-shrink: 0; padding: 0 20px; font-size: 0.9rem; margin-left: auto; height: 40px; border-radius: 8px; }
+        #auto-drop-button {
+            width: auto; /* Override width: 100% */
+            flex-grow: 1; /* Allow it to take up available space */
+            flex-shrink: 0; /* Prevent it from shrinking */
+            padding: 0 15px; /* Reduce horizontal padding */
+            font-size: 0.9rem; /* Smaller font */
+            margin-left: 10px; /* Add space between it and the input */
+            height: 40px; /* Match the stepper buttons' height */
+            border-radius: 8px;
+        }
         .main-button:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); filter: brightness(1.1); }
         .main-button:active:not(:disabled) { transform: translateY(-1px); }
         .main-button:disabled { background: #4a5568 !important; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
@@ -174,10 +183,11 @@
         <div class="modal-content">
             <h3>Депозит Подарками</h3>
             <div class="modal-body" style="text-align: center;">
-                <p>Эта функция всё еще в разработке</p>
+                <p>Для пополнения подарками переведите ваш подарок @uberstard, в короткий период он вручную зачислит вам TON на баланс.</p>
             </div>
-            <div class="modal-actions">
-                <button id="close-gifts-modal-btn" class="main-button">Понятно</button>
+            <div class="modal-actions" style="flex-direction: column;">
+                <a href="https://t.me/uberstard" target="_blank" class="main-button" style="text-decoration: none;">Связаться с @uberstard</a>
+                <button id="close-gifts-modal-btn" class="main-button" style="background: var(--stepper-bg);">Закрыть</button>
             </div>
         </div>
     </div>
@@ -199,10 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
     let GRAVITY = 0.25, DAMPING = 0.55;
     let freeDropTimerInterval = null;
-    
-    //
-    // === NEW CONFIGURATION TO PASTE INTO index.html ===
-    //
+    let isAutoDropping = false;
+    let autoDropCount = 0;
+    let autoDropIntervalId = null;
     
     const riskLevelConfigs = {
         low: {
@@ -245,6 +254,13 @@ document.addEventListener('DOMContentLoaded', () => {
         closeGiftsModalBtn: document.getElementById('close-gifts-modal-btn'),
         timerElement: document.getElementById('timer'), claimFreeDropBtn: document.getElementById('claim-free-drop-btn'),
     };
+    selectors.tonDepositAddress.addEventListener('click', (e) => copyToClipboard(e.target, 'Адрес'));
+    selectors.tonDepositComment.addEventListener('click', (e) => copyToClipboard(e.target, 'Комментарий'));
+    selectors.autoDropButton.addEventListener('click', handleAutoDrop);
+    
+    // Also make the inputs read-only to prevent accidental edits and improve UX
+    selectors.tonDepositAddress.setAttribute('readonly', true);
+    selectors.tonDepositComment.setAttribute('readonly', true);
     
     async function apiRequest(endpoint, method = 'POST', body = {}) {
         const config = { method, headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData } };
@@ -284,7 +300,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateProfileUI() {
         selectors.profileName.textContent = currentUser.first_name || "User";
         selectors.profileUsername.textContent = currentUser.username ? `@${currentUser.username}` : `#${currentUser.id}`;
-        selectors.profileAvatar.textContent = (currentUser.first_name || "?").charAt(0);
+        
+        // --- START: MODIFIED AVATAR LOGIC ---
+        selectors.profileAvatar.innerHTML = ''; // Clear previous content (initials)
+        if (currentUser.photo_url) {
+            const img = document.createElement('img');
+            img.src = currentUser.photo_url;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            selectors.profileAvatar.appendChild(img);
+            selectors.profileAvatar.style.padding = '0'; // Remove padding if image exists
+            selectors.profileAvatar.style.fontSize = '0'; // Hide any text fallback
+        } else {
+            selectors.profileAvatar.textContent = (currentUser.first_name || "?").charAt(0);
+            selectors.profileAvatar.style.padding = ''; // Reset padding
+            selectors.profileAvatar.style.fontSize = '3rem'; // Reset font size
+        }
+        // --- END: MODIFIED AVATAR LOGIC ---
     }
     function switchView(viewId) {
         if (freeDropTimerInterval) { clearInterval(freeDropTimerInterval); freeDropTimerInterval = null; }
@@ -296,7 +329,46 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.headerBetValue.textContent = `${parseFloat(selectors.betAmountInput.value).toFixed(2)}`;
         selectors.headerRiskValue.textContent = riskLevelConfigs[currentRisk].name;
     }
-
+    function handleAutoDrop() {
+        if (isAutoDropping) {
+            // --- STOP AUTO DROP ---
+            clearInterval(autoDropIntervalId);
+            isAutoDropping = false;
+            selectors.autoDropButton.textContent = 'Старт';
+            selectors.autoDropButton.style.background = 'var(--button-secondary-bg)';
+            setControlsDisabled(false); // Re-enable all controls
+        } else {
+            // --- START AUTO DROP ---
+            const totalDrops = parseInt(selectors.autoDropCountInput.value, 10);
+            if (isNaN(totalDrops) || totalDrops < 1) {
+                tg.showAlert('Пожалуйста, введите корректное количество бросков.');
+                return;
+            }
+            
+            const bet = parseFloat(selectors.betAmountInput.value);
+            if (bet * totalDrops > currentUser.balance) {
+                tg.showAlert('Недостаточно средств для указанного количества авто-бросков.');
+                return;
+            }
+    
+            isAutoDropping = true;
+            autoDropCount = 0;
+            selectors.autoDropButton.textContent = 'Стоп';
+            selectors.autoDropButton.style.background = '#e53e3e'; // Red color for stop
+            setControlsDisabled(true); // Disable controls
+            selectors.autoDropButton.disabled = false; // But keep the stop button enabled
+    
+            autoDropIntervalId = setInterval(() => {
+                if (autoDropCount >= totalDrops || currentUser.balance < bet) {
+                    handleAutoDrop(); // Stop if count is reached or balance is insufficient
+                    if(currentUser.balance < bet) tg.showAlert('Авто-броски остановлены: недостаточно средств.');
+                    return;
+                }
+                performDrop(false);
+                autoDropCount++;
+            }, 1000); // 1 drop per second
+        }
+    }
     function updateFreeDropTimer() {
         const lastClaim = currentUser.last_free_drop_claim;
         if (!lastClaim) { selectors.timerElement.textContent = "Готово!"; selectors.claimFreeDropBtn.disabled = false; return; }
@@ -311,6 +383,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const h = Math.floor(timeLeft/36e5), m = Math.floor((timeLeft%36e5)/6e4), s = Math.floor((timeLeft%6e4)/1e3);
             selectors.timerElement.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
         }
+    }
+    function copyToClipboard(element, fieldName) {
+        if (!navigator.clipboard) {
+            tg.showAlert('Ваш браузер не поддерживает копирование.');
+            return;
+        }
+        navigator.clipboard.writeText(element.value).then(() => {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert(`${fieldName} скопирован в буфер обмена!`);
+        }).catch(err => {
+            tg.showAlert(`Не удалось скопировать: ${err}`);
+        });
     }
     function initFreeTryView() { updateFreeDropTimer(); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
     // In your HTML <script> tag
