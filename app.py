@@ -315,26 +315,23 @@ def plinko_drop():
         if not user or Decimal(str(user.balance)) < bet_amount:
             return jsonify({"error": "Insufficient balance"}), 400
         
-        # --- START: NEW BIASED RANDOM LOGIC ---
         config = PLINKO_CONFIGS[risk]; rows = config['rows']
         
-        # RTP Control: A higher bias means the ball is more likely to move to the center.
-        # 0.0 = Fair 50/50 chance. 0.1 = 60/40 chance to move to center. 0.2 = 70/30.
-        CENTER_BIAS = 0.1 
+        CENTER_BIAS = 0.15 # I've also included the balance change here, see part 2
 
         horizontal_offset = 0
+        path = [] # <<< NEW: Create a list to store the path
         for _ in range(rows):
-            if horizontal_offset > 0: # Ball is on the right, bias it left
+            if horizontal_offset > 0: 
                 direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
-            elif horizontal_offset < 0: # Ball is on the left, bias it right
+            elif horizontal_offset < 0:
                 direction = random.choices([-1, 1], weights=[0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
-            else: # Ball is in the center, fair choice
+            else:
                 direction = random.choice([-1, 1])
             horizontal_offset += direction
+            path.append(direction) # <<< NEW: Add the direction (-1 for left, 1 for right) to the path
 
-        # The final position is determined by the total offset
         final_pos_offset = horizontal_offset
-        # --- END: NEW BIASED RANDOM LOGIC ---
 
         center_index = len(config['multipliers']) // 2
         final_index = max(0, min(len(config['multipliers']) - 1, center_index + final_pos_offset))
@@ -342,7 +339,16 @@ def plinko_drop():
         user.balance = float(Decimal(str(user.balance)) - bet_amount + winnings)
         drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
         db.add(drop_log); db.commit()
-        return jsonify({ "status": "success", "multiplier": float(multiplier), "winnings": float(winnings), "new_balance": user.balance, "final_slot_index": final_index })
+        
+        # <<< MODIFIED: Add the 'path' to the JSON response
+        return jsonify({ 
+            "status": "success", 
+            "multiplier": float(multiplier), 
+            "winnings": float(winnings), 
+            "new_balance": user.balance, 
+            "final_slot_index": final_index,
+            "path": path # <<< NEW
+        })
     finally:
         db.close()
 
