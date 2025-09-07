@@ -317,7 +317,7 @@ def plinko_drop():
         
         config = PLINKO_CONFIGS[risk]; rows = config['rows']
         
-        CENTER_BIAS = 0.15 # I've also included the balance change here, see part 2
+        CENTER_BIAS = 0.3 # I've also included the balance change here, see part 2
 
         horizontal_offset = 0
         path = [] # <<< NEW: Create a list to store the path
