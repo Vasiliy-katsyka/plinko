@@ -315,6 +315,53 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.profileBalance.textContent = formattedBalance;
         selectors.betAmountInput.max = currentUser.balance;
     }
+
+    function animateChipAlongPath(chip) {
+        const config = riskLevelConfigs[currentRisk];
+        const path = chip.serverResult.path;
+        const hSpacing = BOARD_WIDTH / config.cols;
+        const vSpacing = BOARD_HEIGHT / (config.rows + 1);
+        let currentRow = 0;
+        let currentPegIndex = Math.floor(config.cols / 2) - (currentRow % 2 === 0 ? 0.5 : 0);
+        
+        // Smooth animation using CSS transitions
+        chip.element.style.transition = 'left 0.25s ease-in-out, top 0.25s ease-out';
+    
+        function nextMove() {
+            if (currentRow >= path.length) {
+                // Animation finished, drop into the slot
+                chip.element.style.left = chip.element.style.left; // Keep horizontal position
+                chip.element.style.top = `${BOARD_HEIGHT + CHIP_RADIUS * 2}px`;
+                setTimeout(() => endDrop(chip), 300); // Wait for final drop animation
+                return;
+            }
+    
+            const direction = path[currentRow]; // -1 for left, 1 for right
+            
+            // Calculate next peg's position
+            const isEvenRow = (currentRow + 1) % 2 === 0;
+            const xOffset = isEvenRow ? hSpacing : hSpacing / 2;
+            
+            // The logic here is tricky: based on the current peg and direction, find the next one
+            if (isEvenRow) {
+                currentPegIndex += (direction === 1 ? 0.5 : -0.5);
+            } else {
+                 currentPegIndex += (direction === 1 ? 0.5 : -0.5);
+            }
+           
+            const nextX = xOffset + (currentPegIndex) * hSpacing;
+            const nextY = vSpacing + (currentRow + 1) * vSpacing;
+    
+            chip.element.style.left = `${nextX}px`;
+            chip.element.style.top = `${nextY}px`;
+            
+            currentRow++;
+            setTimeout(nextMove, 260); // Time between steps
+        }
+        
+        // Start the animation
+        nextMove();
+    }
     function updateProfileUI() {
         selectors.profileName.textContent = currentUser.first_name || "User";
         selectors.profileUsername.textContent = currentUser.username ? `@${currentUser.username}` : `#${currentUser.id}`;
@@ -500,12 +547,33 @@ document.addEventListener('DOMContentLoaded', () => {
             updateBalanceUI();
             const chipId = chipIdCounter++; const chipEl = document.createElement('div');
             chipEl.className = 'chip'; chipEl.style.width = `${CHIP_RADIUS * 2}px`; chipEl.style.height = `${CHIP_RADIUS * 2}px`;
-            const newChip = { id: chipId, x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, vx: (Math.random() - 0.5) * 2, vy: 0, element: chipEl, serverResult: result };
-            chipEl.style.left = `${newChip.x}px`; chipEl.style.top = `${newChip.y}px`; chipEl.style.visibility = 'visible';
-            selectors.board.appendChild(chipEl); activeChips.push(newChip);
-            if (!isDropping) { isDropping = true; document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight')); requestAnimationFrame(updatePhysics); }
+            
+            // Initial position
+            const initialX = BOARD_WIDTH / 2;
+            const initialY = CHIP_RADIUS * 2;
+            
+            const newChip = { 
+                id: chipId, 
+                element: chipEl, 
+                serverResult: result // Store the whole result
+            };
+            
+            chipEl.style.left = `${initialX}px`;
+            chipEl.style.top = `${initialY}px`;
+            chipEl.style.visibility = 'visible';
+            selectors.board.appendChild(chipEl);
+    
+            // Remove the old way of handling chips
+            // activeChips.push(newChip); 
+            
+            document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
+            
+            // Start the NEW path-based animation instead of the physics loop
+            animateChipAlongPath(newChip);
+    
         } catch (error) { setControlsDisabled(false); }
     }
+
     function updatePhysics() {
         if (activeChips.length === 0) { isDropping = false; setControlsDisabled(false); return; }
         for (let i = activeChips.length - 1; i >= 0; i--) {
@@ -526,11 +594,17 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(updatePhysics);
     }
     function endDrop(chip) {
-        chip.element.remove(); const result = chip.serverResult; currentUser.balance = result.new_balance; updateBalanceUI();
+        chip.element.remove(); 
+        const result = chip.serverResult; 
+        currentUser.balance = result.new_balance; 
+        updateBalanceUI();
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
         if (targetSlot) { targetSlot.classList.add('highlight'); }
         if (result.multiplier >= 10) tg.HapticFeedback.notificationOccurred('success');
         else if (result.multiplier >= 1) tg.HapticFeedback.impactOccurred('medium');
+    
+        // Re-enable controls after the drop is fully finished
+        setControlsDisabled(false);
     }
     
     function setControlsDisabled(disabled) {
