@@ -503,15 +503,28 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleClaimFreeDrop() {
         selectors.claimFreeDropBtn.disabled = true;
         try {
+            // The backend now handles the entire game logic for the free drop.
+            // It will return the game result just like a normal drop.
             const result = await apiRequest('/api/claim_free_drop', 'POST', {});
-            if (result.status === 'success') {
-                currentUser.last_free_drop_claim = result.new_claim_time;
-                tg.showAlert(result.message);
-                updateFreeDropTimer();
-                switchView('main-game-view');
     
-                // --- START: NEW LOGIC ---
-                // Animate the result we got directly from the claim API
+            if (result.status === 'success') {
+                tg.showAlert(result.message); // "Бесплатный бросок получен!"
+                currentUser.last_free_drop_claim = result.new_claim_time;
+                
+                // --- NEW UX IMPROVEMENT ---
+                // 1. Switch to the main game view
+                switchView('main-game-view');
+                
+                // 2. Set the risk level to medium visually, which is what the server used
+                setupBoard('medium'); 
+                
+                // 3. Update the user's balance on the UI immediately
+                currentUser.balance = result.game_result.new_balance;
+                updateBalanceUI();
+    
+                // --- ANIMATION FIX ---
+                // Now, we create the chip and animate it using the server's result.
+                // This reuses our existing physics logic perfectly.
                 const gameResult = result.game_result;
                 const chipId = chipIdCounter++;
                 const chipEl = document.createElement('div');
@@ -519,19 +532,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 chipEl.style.width = `${CHIP_RADIUS * 2}px`;
                 chipEl.style.height = `${CHIP_RADIUS * 2}px`;
     
-                // We pass the server result directly to the new chip
-                const newChip = { 
-                    id: chipId, 
-                    x: BOARD_WIDTH / 2, y: CHIP_RADIUS * 2, 
-                    vx: (Math.random() - 0.5) * 2, vy: 0, 
-                    element: chipEl, 
-                    serverResult: gameResult // Use the result from the API
+                const newChip = {
+                    id: chipId,
+                    x: BOARD_WIDTH / 2,
+                    y: CHIP_RADIUS,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: 0,
+                    element: chipEl,
+                    serverResult: gameResult, // Use the result from the free drop API
+                    isGuided: false,
+                    targetX: undefined
                 };
     
-                chipEl.style.left = `${newChip.x}px`;
-                chipEl.style.top = `${newChip.y}px`;
+                chipEl.style.transform = `translate(${newChip.x - CHIP_RADIUS}px, ${newChip.y - CHIP_RADIUS}px)`;
                 chipEl.style.visibility = 'visible';
                 selectors.board.appendChild(chipEl);
+                
                 activeChips.push(newChip);
     
                 if (!isDropping) {
@@ -539,13 +555,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
                     requestAnimationFrame(updatePhysics);
                 }
-                // --- END: NEW LOGIC ---
+                // --- END OF FIXES ---
     
             } else {
                 tg.showAlert(result.message);
-                selectors.claimFreeDropBtn.disabled = false;
+                selectors.claimFreeDropBtn.disabled = false; // Re-enable on failure
             }
         } catch (e) {
+            console.error("Error claiming free drop:", e);
             selectors.claimFreeDropBtn.disabled = false;
         }
     }
