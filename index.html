@@ -48,25 +48,35 @@
             0%, 100% { transform: scale(1); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
             50% { transform: scale(1.03); box-shadow: 0 8px 25px rgba(168, 85, 247, 0.3); }
         }
-        
+        @keyframes cosmic-flow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
         .main-button:not(:disabled) {
             animation: pulse-button 3s ease-in-out infinite;
         }
         #plinko-board {
-            /* Add a subtle inner glow */
-            box-shadow: inset 0 0 25px rgba(0,0,0,0.5), 
-                        0 0 40px rgba(44, 51, 107, 0.5); 
-            /* Keep existing styles */
             width: 100%;
             aspect-ratio: 1 / 1;
-            background: radial-gradient(circle, var(--surface-color-2) 0%, var(--surface-color) 100%);
+            position: relative; /* Crucial for pseudo-elements and child positioning */
             border-radius: 20px 20px 0 0;
-            position: relative;
+            overflow: hidden; /* Keeps the cool effects contained */
             border: 1px solid var(--border-color);
             border-bottom: none;
-            overflow: hidden;
+            box-shadow: inset 0 0 25px rgba(0,0,0,0.7);
+        
+            /* --- THE NEW DYNAMIC BACKGROUND --- */
+            background: linear-gradient(-45deg, 
+                var(--surface-color), 
+                #2c336b, /* A deep blue from your palette */
+                var(--surface-color-2),
+                var(--highlight-primary)
+            );
+            background-size: 300% 300%; /* Make the gradient huge so it can move */
+            animation: cosmic-flow 20s ease infinite; /* Apply the slow animation */
         }
-        .peg { width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%; position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3); transform: translate(-50%, -50%); }
+        .peg { width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%; position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3); transform: translate(-50%, -50%); z-index: 5;}
         .chip { position: absolute; background-color: var(--chip-color); border-radius: 50%; filter: drop-shadow(0 0 8px var(--chip-color)) drop-shadow(0 0 15px var(--chip-color)); visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s; }
         #slots-container { display: flex; width: 100%; border-radius: 0 0 20px 20px; overflow: hidden; border: 1px solid var(--border-color); border-top: none; }
         .slot { flex-grow: 1; height: 45px; display: flex; justify-content: center; align-items: center; font-weight: 600; font-size: clamp(0.6rem, 2.5vw, 0.8rem); color: white; transition: all 0.3s ease; }
