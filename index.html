@@ -345,84 +345,6 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
         if (viewId === 'free-try-view') { initFreeTryView(); }
     }
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-    // --- NEW ANIMATION ENGINE ---
-    async function animateChipWithServerPath(chip) {
-        const config = riskLevelConfigs[currentRisk];
-        const path = chip.serverResult.path;
-        const element = chip.element;
-    
-        const vSpacing = BOARD_HEIGHT / (config.rows + 1);
-        const hSpacing = BOARD_WIDTH / config.cols;
-    
-        // This cubic-bezier function simulates a "bounce" - it moves fast, overshoots a little, then settles.
-        const bounceEasing = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
-        const fallDuration = 150; // ms for each step
-        element.style.transition = `transform ${fallDuration}ms ${bounceEasing}`;
-        
-        // Keyframe animation for a subtle "squash" on impact
-        const impactAnimation = [
-            { transform: element.style.transform + ' scale(1)' },
-            { transform: element.style.transform + ' scale(1.1, 0.9)' },
-            { transform: element.style.transform + ' scale(1)' }
-        ];
-        const impactTiming = { duration: 150, easing: 'ease-out' };
-    
-        // --- Calculate the entire sequence of positions ---
-        let currentX = BOARD_WIDTH / 2;
-        // Animate the initial drop onto the first peg
-        const firstPegY = vSpacing;
-        const firstPegXOffset = 0 % 2 === 0 ? hSpacing : hSpacing / 2;
-        const firstPegNum = config.cols / 2 - (0 % 2 === 0 ? 0.5 : 0);
-        currentX = firstPegXOffset + firstPegNum * hSpacing;
-        
-        element.style.transform = `translate(${currentX - CHIP_RADIUS}px, ${firstPegY - CHIP_RADIUS}px)`;
-        await sleep(fallDuration + 20);
-    
-        // --- Animate through the server-defined path ---
-        for (let i = 0; i < path.length; i++) {
-            const direction = path[i]; // -1 for left, 1 for right
-            const currentRow = i;
-            const nextRow = i + 1;
-    
-            // Determine horizontal position based on direction
-            currentX += (direction * hSpacing) / 2;
-    
-            // Stagger for next row
-            currentX += (direction * hSpacing) / 2;
-            
-            // Calculate the Y position of the next peg
-            const nextY = vSpacing + nextRow * vSpacing;
-            
-            // Apply the new position
-            element.style.transform = `translate(${currentX - CHIP_RADIUS}px, ${nextY - CHIP_RADIUS}px)`;
-            
-            // Play the "squash" animation to fake an impact
-            element.animate(impactAnimation, impactTiming);
-            
-            // Wait for the transition to finish before starting the next one
-            await sleep(fallDuration + 20); // Add 20ms buffer
-        }
-    
-        // --- Final fall into the slot ---
-        const finalSlotIndex = chip.serverResult.final_slot_index;
-        const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
-        if (targetSlot) {
-            const slotRect = targetSlot.getBoundingClientRect();
-            const boardRect = selectors.board.getBoundingClientRect();
-            const finalX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
-            
-            // Use a different easing for the final drop to look more natural
-            element.style.transition = 'transform 300ms ease-in';
-            element.style.transform = `translate(${finalX - CHIP_RADIUS}px, ${BOARD_HEIGHT + CHIP_RADIUS}px)`;
-            await sleep(300);
-        }
-        
-        // Call endDrop for cleanup
-        endDrop(chip);
-    }
     function updateHeaderValues() {
         selectors.headerBetValue.textContent = `${parseFloat(selectors.betAmountInput.value).toFixed(2)}`;
         selectors.headerRiskValue.textContent = riskLevelConfigs[currentRisk].name;
@@ -579,6 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setControlsDisabled(true);
     
         try {
+            // We no longer need the 'path' from the server, just the final result
             const result = await apiRequest('/api/plinko_drop', 'POST', { bet, risk: currentRisk });
     
             if (!isFree) {
@@ -589,32 +512,41 @@ document.addEventListener('DOMContentLoaded', () => {
             const chipId = chipIdCounter++;
             const chipEl = document.createElement('div');
             chipEl.className = 'chip';
+            // Use transform for positioning for smoother animation
             chipEl.style.width = `${CHIP_RADIUS * 2}px`;
             chipEl.style.height = `${CHIP_RADIUS * 2}px`;
-            
+    
             const newChip = {
                 id: chipId,
+                // <<< FIX: Start exactly at the top center
+                x: BOARD_WIDTH / 2,
+                y: CHIP_RADIUS, // Start at the very top edge
+                vx: (Math.random() - 0.5) * 2, // Initial horizontal velocity for a random start
+                vy: 0,
                 element: chipEl,
-                serverResult: result
+                serverResult: result,
+                isGuided: false, // <<< NEW: Flag to control the hybrid logic
+                targetX: undefined
             };
-    
-            // Initial position before the animation starts
-            const startX = BOARD_WIDTH / 2;
-            const startY = -CHIP_RADIUS * 2; // Start off-screen at the top
-            chipEl.style.transform = `translate(${startX - CHIP_RADIUS}px, ${startY - CHIP_RADIUS}px)`;
+            
+            // Use translate for positioning - it's better for performance
+            chipEl.style.transform = `translate(${newChip.x - CHIP_RADIUS}px, ${newChip.y - CHIP_RADIUS}px)`;
             chipEl.style.visibility = 'visible';
             selectors.board.appendChild(chipEl);
-    
-            document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
             
-            // Start the new, deterministic animation. No more physics loop!
-            animateChipWithServerPath(newChip);
+            activeChips.push(newChip); // Add the new chip to our animation list
+    
+            // Start the physics loop if it's not already running
+            if (!isDropping) {
+                isDropping = true;
+                document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
+                requestAnimationFrame(updatePhysics);
+            }
     
         } catch (error) {
             setControlsDisabled(false);
         }
     }
-
 
     function updatePhysics() {
         // Stop the animation loop if there are no more chips on the board
@@ -707,6 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(updatePhysics);
     }
     function endDrop(chip) {
+        // This function is now just for cleanup and UI updates after a chip is removed
         chip.element.remove();
         const result = chip.serverResult;
         currentUser.balance = result.new_balance;
@@ -721,9 +654,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (result.multiplier >= 1) {
             tg.HapticFeedback.impactOccurred('medium');
         }
-        
-        // Now that this specific chip's animation is fully complete, re-enable the controls.
-        setControlsDisabled(false);
     }
     
     function setControlsDisabled(disabled) {
