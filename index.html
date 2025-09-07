@@ -430,75 +430,134 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.headerBetValue.textContent = `${parseFloat(selectors.betAmountInput.value).toFixed(2)}`;
         selectors.headerRiskValue.textContent = riskLevelConfigs[currentRisk].name;
     }
-    function handleAutoDrop() {
-        if (isAutoDropping) {
-            // --- STOP AUTO DROP ---
-            isAutoDropping = false; // The loop will see this and stop itself
-            selectors.autoDropButton.textContent = 'Старт';
-            selectors.autoDropButton.style.background = 'var(--button-primary-bg)';
-            // The loop will re-enable controls when it finishes
-        } else {
-            // --- START AUTO DROP ---
-            isAutoDropping = true;
-            selectors.autoDropButton.textContent = 'Стоп';
-            selectors.autoDropButton.style.background = '#e53e3e'; // Red color for stop
-            runAutoDropLoop(); // Start the smart loop
-        }
-    }
-async function runAutoDropLoop() {
-    const totalDrops = parseInt(selectors.autoDropCountInput.value, 10);
-    const bet = parseFloat(selectors.betAmountInput.value);
-
-    // Initial checks before starting the loop
-    if (isNaN(totalDrops) || totalDrops < 1) {
-        tg.showAlert('Пожалуйста, введите корректное количество бросков.');
-        isAutoDropping = false; // Reset state
-        handleAutoDrop(); // Visually reset the button
-        return;
-    }
-    if (bet * totalDrops > currentUser.balance) {
-        tg.showAlert('Недостаточно средств для указанного количества авто-бросков.');
-        isAutoDropping = false;
-        handleAutoDrop();
-        return;
-    }
+    async function handleAutoDrop() {
+        // This is now a "fire and forget" function for a whole batch
+        const totalDrops = parseInt(selectors.autoDropCountInput.value, 10);
+        const bet = parseFloat(selectors.betAmountInput.value);
     
-    setControlsDisabled(true);
-    selectors.autoDropButton.disabled = false; // Keep the stop button enabled
-
-    // The "Smart" Loop
-    for (let i = 0; i < totalDrops; i++) {
-        // Check before each drop if the user has clicked "Stop"
-        if (!isAutoDropping) {
-            console.log("Auto-drop stopped by user.");
-            break;
+        // Safety checks
+        if (isNaN(totalDrops) || totalDrops < 1) {
+            tg.showAlert('Пожалуйста, введите корректное количество бросков.');
+            return;
         }
-
-        // Check for sufficient balance before each drop
-        if (currentUser.balance < bet) {
-            tg.showAlert('Авто-броски остановлены: недостаточно средств.');
-            isAutoDropping = false;
-            break;
+        if (bet * totalDrops > currentUser.balance) {
+            tg.showAlert('Недостаточно средств для указанного количества авто-бросков.');
+            return;
         }
-
+    
+        setControlsDisabled(true); // Disable controls during the drop
+    
         try {
-            // This is the magic: it WAITS for performDrop's promise to resolve
-            await performDrop(false);
-            // Optional: add a small delay between drops so it doesn't feel too robotic
-            await new Promise(res => setTimeout(res, 400)); 
+            // --- Call the NEW BATCH ENDPOINT ---
+            const batchResult = await apiRequest('/api/plinko_drop_batch', 'POST', {
+                bet: bet,
+                risk: currentRisk,
+                count: totalDrops
+            });
+    
+            // The balance is deducted on the server, so we just update the UI
+            currentUser.balance = batchResult.new_balance;
+            updateBalanceUI();
+    
+            // --- Animate all balls at once ---
+            batchResult.results.forEach((result, index) => {
+                // Add a slight delay to each ball so they don't all drop on the exact same pixel
+                setTimeout(() => {
+                    animateSingleChip(result);
+                }, index * 50); // Stagger start times by 50ms
+            });
+    
         } catch (error) {
-            console.error("Error during auto-drop, stopping loop:", error);
-            isAutoDropping = false; // Stop the loop on any error
-            break;
+            console.error("Error during batch drop:", error);
+            setControlsDisabled(false); // Re-enable controls on failure
         }
     }
-
-    // --- CLEANUP after the loop finishes or breaks ---
-    isAutoDropping = false;
-    selectors.autoDropButton.textContent = 'Старт';
-    selectors.autoDropButton.style.background = 'var(--button-primary-bg)';
-    setControlsDisabled(false); // Re-enable all controls
-}
+    async function runAutoDropLoop() {
+        const totalDrops = parseInt(selectors.autoDropCountInput.value, 10);
+        const bet = parseFloat(selectors.betAmountInput.value);
+    
+        // Initial checks before starting the loop
+        if (isNaN(totalDrops) || totalDrops < 1) {
+            tg.showAlert('Пожалуйста, введите корректное количество бросков.');
+            isAutoDropping = false; // Reset state
+            handleAutoDrop(); // Visually reset the button
+            return;
+        }
+        if (bet * totalDrops > currentUser.balance) {
+            tg.showAlert('Недостаточно средств для указанного количества авто-бросков.');
+            isAutoDropping = false;
+            handleAutoDrop();
+            return;
+        }
+        
+        setControlsDisabled(true);
+        selectors.autoDropButton.disabled = false; // Keep the stop button enabled
+    
+        // The "Smart" Loop
+        for (let i = 0; i < totalDrops; i++) {
+            // Check before each drop if the user has clicked "Stop"
+            if (!isAutoDropping) {
+                console.log("Auto-drop stopped by user.");
+                break;
+            }
+    
+            // Check for sufficient balance before each drop
+            if (currentUser.balance < bet) {
+                tg.showAlert('Авто-броски остановлены: недостаточно средств.');
+                isAutoDropping = false;
+                break;
+            }
+    
+            try {
+                // This is the magic: it WAITS for performDrop's promise to resolve
+                await performDrop(false);
+                // Optional: add a small delay between drops so it doesn't feel too robotic
+                await new Promise(res => setTimeout(res, 400)); 
+            } catch (error) {
+                console.error("Error during auto-drop, stopping loop:", error);
+                isAutoDropping = false; // Stop the loop on any error
+                break;
+            }
+        }
+    
+        // --- CLEANUP after the loop finishes or breaks ---
+        isAutoDropping = false;
+        selectors.autoDropButton.textContent = 'Старт';
+        selectors.autoDropButton.style.background = 'var(--button-primary-bg)';
+        setControlsDisabled(false); // Re-enable all controls
+    }
+    function animateSingleChip(resultFromServer) {
+        const chipId = chipIdCounter++;
+        const chipEl = document.createElement('div');
+        chipEl.className = 'chip';
+        chipEl.style.width = `${CHIP_RADIUS * 2}px`;
+        chipEl.style.height = `${CHIP_RADIUS * 2}px`;
+    
+        const newChip = {
+            id: chipId,
+            x: BOARD_WIDTH / 2,
+            y: CHIP_RADIUS,
+            vx: (Math.random() - 0.5) * 4, // More initial velocity variance for a nice spread
+            vy: 0,
+            element: chipEl,
+            serverResult: resultFromServer, // This is one result from the 'results' array
+            isGuided: false,
+            targetX: undefined
+        };
+    
+        chipEl.style.transform = `translate(${newChip.x - CHIP_RADIUS}px, ${newChip.y - CHIP_RADIUS}px)`;
+        chipEl.style.visibility = 'visible';
+        selectors.board.appendChild(chipEl);
+    
+        activeChips.push(newChip);
+    
+        // Start the physics loop if it's not already running
+        if (!isDropping) {
+            isDropping = true;
+            document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
+            requestAnimationFrame(updatePhysics);
+        }
+    }
     function updateFreeDropTimer() {
         const lastClaim = currentUser.last_free_drop_claim;
         if (!lastClaim) { selectors.timerElement.textContent = "Готово!"; selectors.claimFreeDropBtn.disabled = false; return; }
@@ -677,13 +736,37 @@ async function runAutoDropLoop() {
             }
         });
     }
-
-
+    async function handleSingleDrop() {
+        // This is almost identical to the old performDrop, but simplified
+        setControlsDisabled(true);
+        try {
+            const bet = parseFloat(selectors.betAmountInput.value);
+            if (bet > currentUser.balance) {
+                tg.showAlert("Недостаточно средств!");
+                setControlsDisabled(false);
+                return;
+            }
+            
+            const result = await apiRequest('/api/plinko_drop', 'POST', { bet: bet, risk: currentRisk });
+            currentUser.balance = result.new_balance;
+            updateBalanceUI();
+            animateSingleChip(result);
+    
+        } catch(error) {
+            console.error("Error during single drop:", error);
+            setControlsDisabled(false);
+        }
+    }
     function updatePhysics() {
         // Stop the animation loop if there are no more chips on the board
         if (activeChips.length === 0) {
             isDropping = false;
-            setControlsDisabled(false); // Re-enable controls only when all chips are gone
+            setControlsDisabled(false); // This line is now very important!
+            // We can also update the final balance here for perfect accuracy
+            apiRequest('/api/user_data', 'POST', {}).then(userData => {
+                currentUser.balance = userData.balance;
+                updateBalanceUI();
+            });
             return;
         }
     
@@ -772,22 +855,20 @@ async function runAutoDropLoop() {
     function endDrop(chip) {
         chip.element.remove();
         const result = chip.serverResult;
-        currentUser.balance = result.new_balance;
-        updateBalanceUI();
+        
+        // We don't update the balance here anymore because it was updated once for the whole batch.
+        // This prevents the balance display from flickering wildly.
     
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
         if (targetSlot) {
+            // To avoid visual chaos, let's make the highlight more subtle for batches
             targetSlot.classList.add('highlight');
+            setTimeout(() => targetSlot.classList.remove('highlight'), 600);
         }
+    
+        // Only give haptic feedback for significant wins to avoid buzzing constantly
         if (result.multiplier >= 10) {
             tg.HapticFeedback.notificationOccurred('success');
-        } else if (result.multiplier >= 1) {
-            tg.HapticFeedback.impactOccurred('medium');
-        }
-        
-        // <<< NEW: If this chip had a promise, resolve it now!
-        if (chip.resolvePromise) {
-            chip.resolvePromise();
         }
     }
     
@@ -905,7 +986,7 @@ async function runAutoDropLoop() {
     selectors.navButtons.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
     selectors.collapsibleHeader.addEventListener('click', () => { selectors.collapsibleContent.classList.toggle('open'); selectors.toggleIcon.classList.toggle('open'); });
     selectors.riskButtons.forEach(b => b.addEventListener('click', () => setupBoard(b.dataset.risk)));
-    selectors.dropButton.addEventListener('click', () => performDrop(false));
+    selectors.dropButton.addEventListener('click', handleSingleDrop);
     selectors.betAmountInput.addEventListener('change', handleBetChange);
     selectors.stepperButtons.forEach(b => b.addEventListener('click', handleStepper));
     window.addEventListener('resize', () => setupBoard(currentRisk));
