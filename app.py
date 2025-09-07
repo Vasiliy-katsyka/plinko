@@ -365,6 +365,85 @@ def plinko_drop():
     finally:
         db.close()
 
+@app.route('/api/plinko_drop_batch', methods=['POST'])
+def plinko_drop_batch():
+    auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
+    if not auth_data: return jsonify({"error": "Authentication failed"}), 401
+    
+    user_id = auth_data['id']
+    data = flask_request.get_json()
+    bet_amount = Decimal(str(data.get('bet', 0)))
+    risk = data.get('risk', 'medium')
+    count = int(data.get('count', 1))
+
+    if risk not in PLINKO_CONFIGS: return jsonify({"error": "Invalid risk level"}), 400
+    if not (1 <= count <= 50): return jsonify({"error": "Batch count must be between 1 and 50"}), 400
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == user_id).first()
+        total_cost = bet_amount * count
+        if not user or Decimal(str(user.balance)) < total_cost:
+            return jsonify({"error": "Insufficient balance for the entire batch"}), 400
+
+        # --- Process the entire batch at once ---
+        user.balance = float(Decimal(str(user.balance)) - total_cost)
+        
+        results = []
+        total_winnings = Decimal('0')
+        
+        config = PLINKO_CONFIGS[risk]
+        rows = config['rows']
+        CENTER_BIAS = 0.15
+
+        for _ in range(count):
+            horizontal_offset = 0
+            for _ in range(rows):
+                if horizontal_offset > 0:
+                    direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
+                elif horizontal_offset < 0:
+                    direction = random.choices([-1, 1], weights=[0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
+                else:
+                    direction = random.choice([-1, 1])
+                horizontal_offset += direction
+
+            final_pos_offset = horizontal_offset
+            center_index = len(config['multipliers']) // 2
+            final_index = max(0, min(len(config['multipliers']) - 1, center_index + final_pos_offset))
+            
+            multiplier = Decimal(str(config['multipliers'][final_index]))
+            winnings = bet_amount * multiplier
+            total_winnings += winnings
+            
+            # We don't need to update balance here, we do it at the end
+            results.append({
+                "multiplier": float(multiplier),
+                "winnings": float(winnings),
+                "final_slot_index": final_index
+            })
+            
+            # Log each drop
+            drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
+            db.add(drop_log)
+
+        # Apply total winnings to the user's balance
+        user.balance = float(Decimal(str(user.balance)) + total_winnings)
+        
+        db.commit() # Commit all changes in one transaction
+
+        return jsonify({
+            "status": "success",
+            "results": results,
+            "new_balance": user.balance
+        })
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in batch drop: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
+    finally:
+        db.close()
+
 @app.route('/api/initiate_ton_deposit', methods=['POST'])
 def initiate_ton_deposit():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
