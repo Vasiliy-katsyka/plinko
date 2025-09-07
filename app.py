@@ -267,31 +267,44 @@ def claim_free_drop():
 
         user.last_free_drop_claim = now
         
-        # --- START: Added Plinko Logic ---
+        # --- START: REPLACED PLINKO LOGIC ---
         risk = 'medium' # Free drops are always medium risk
         config = PLINKO_CONFIGS[risk]
         rows = config['rows']
         
-        final_pos_offset = sum(secrets.choice([-1, 1]) for _ in range(rows))
+        # <<< FIX: Apply the same balanced logic as the main game
+        CENTER_BIAS = 0.2 # Use the same bias to make center drops more common
+        
+        horizontal_offset = 0
+        for _ in range(rows):
+            if horizontal_offset > 0:
+                direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
+            elif horizontal_offset < 0:
+                direction = random.choices([-1, 1], weights=[0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
+            else:
+                direction = random.choice([-1, 1])
+            horizontal_offset += direction
+
+        final_pos_offset = horizontal_offset
+        # <<< END OF FIX
+        
         center_index = len(config['multipliers']) // 2
         final_index = max(0, min(len(config['multipliers']) - 1, center_index + final_pos_offset))
         
         multiplier = Decimal(str(config['multipliers'][final_index]))
         winnings = FREE_DROP_BET_AMOUNT * multiplier
         
-        # NOTE: We DO NOT subtract the bet amount. It's a free drop.
         user.balance = float(Decimal(str(user.balance)) + winnings)
         
         drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(FREE_DROP_BET_AMOUNT), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
         db.add(drop_log)
         db.commit()
-        # --- END: Added Plinko Logic ---
+        # --- END: REPLACED PLINKO LOGIC ---
         
         return jsonify({
             "status": "success", 
             "message": "Бесплатный бросок получен!", 
             "new_claim_time": now.isoformat(),
-            # Also return the game result so the frontend can animate it
             "game_result": {
                 "multiplier": float(multiplier),
                 "winnings": float(winnings),
