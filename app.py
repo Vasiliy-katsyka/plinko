@@ -31,7 +31,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://plinko-4vm7.onrender.com")
 DEPOSIT_WALLET_ADDRESS = os.environ.get("DEPOSIT_WALLET_ADDRESS")
 ADMIN_IDS_STR = os.environ.get("ADMIN_USER_IDS", "")
-REQUIRED_CHANNELS = ['@giftplinko', '@CompactTelegram', '@giftnewstoday', '@myzone196']
+REQUIRED_CHANNELS = ['@CompactTelegram', '@giftnewstoday', '@myzone196']
 WEB_APP_URL = "https://vasiliy-katsyka.github.io/plinko"
 ADMIN_USER_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',') if admin_id.strip()]
 
@@ -317,7 +317,7 @@ def plinko_drop():
         
         config = PLINKO_CONFIGS[risk]; rows = config['rows']
         
-        CENTER_BIAS = 0.3 # I've also included the balance change here, see part 2
+        CENTER_BIAS = 0.2 # I've also included the balance change here, see part 2
 
         horizontal_offset = 0
         path = [] # <<< NEW: Create a list to store the path
