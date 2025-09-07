@@ -56,6 +56,11 @@
         .main-button:not(:disabled) {
             animation: pulse-button 3s ease-in-out infinite;
         }
+        @keyframes pulse-glow {
+            0% { box-shadow: inset 0 0 25px rgba(0,0,0,0.7), 0 0 20px rgba(168, 85, 247, 0.2); }
+            50% { box-shadow: inset 0 0 25px rgba(0,0,0,0.7), 0 0 35px rgba(0, 245, 255, 0.4); }
+            100% { box-shadow: inset 0 0 25px rgba(0,0,0,0.7), 0 0 20px rgba(168, 85, 247, 0.2); }
+        }
         #plinko-board {
             width: 100%;
             aspect-ratio: 1 / 1;
@@ -64,7 +69,6 @@
             overflow: hidden; /* Keeps the cool effects contained */
             border: 1px solid var(--border-color);
             border-bottom: none;
-            box-shadow: inset 0 0 25px rgba(0,0,0,0.7);
         
             /* --- THE NEW DYNAMIC BACKGROUND --- */
             background: linear-gradient(-45deg, 
@@ -74,7 +78,33 @@
                 var(--highlight-primary)
             );
             background-size: 300% 300%; /* Make the gradient huge so it can move */
-            animation: cosmic-flow 20s ease infinite; /* Apply the slow animation */
+            animation: cosmic-flow 20s ease infinite, pulse-glow 5s ease-in-out infinite;
+            box-shadow: inset 0 0 25px rgba(0,0,0,0.7); /* The base shadow */
+        }
+        @keyframes scanline {
+            0% { transform: translateY(-100px); }
+            100% { transform: translateY(100px); }
+        }
+        
+        #plinko-board::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1; /* Sits above the background but below the pegs */
+            pointer-events: none; /* Allows clicks to pass through to the board */
+        
+            /* The static grid lines */
+            background-image: 
+                repeating-linear-gradient(to right, transparent, transparent 49.5%, rgba(163, 184, 217, 0.1) 50%, transparent 50.5%, transparent 100%),
+                repeating-linear-gradient(to bottom, transparent, transparent 49.5%, rgba(163, 184, 217, 0.1) 50%, transparent 50.5%, transparent 100%);
+            background-size: 30px 30px; /* Adjust the size of the grid squares */
+            
+            /* The animated glowing scanline */
+            mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+            animation: scanline 4s linear infinite alternate;
         }
         .peg { width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%; position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3); transform: translate(-50%, -50%); z-index: 5;}
         .chip { position: absolute; background-color: var(--chip-color); border-radius: 50%; filter: drop-shadow(0 0 8px var(--chip-color)) drop-shadow(0 0 15px var(--chip-color)); visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s; }
