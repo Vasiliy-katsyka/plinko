@@ -1,4 +1,3 @@
-# app.p
 import os
 import logging
 import hmac
@@ -34,27 +33,22 @@ ADMIN_IDS_STR = os.environ.get("ADMIN_USER_IDS", "")
 REQUIRED_CHANNELS = ['@CompactTelegram', '@giftnewstoday', '@myzone196']
 WEB_APP_URL = "https://vasiliy-katsyka.github.io/plinko"
 ADMIN_USER_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',') if admin_id.strip()]
-TON_TO_STARS_RATE = 250 
+TON_TO_STARS_RATE = 250  # 1 TON = 250 Stars
 
 PLINKO_CONFIGS = {
     'low': {
         'rows': 8,
-        # 9 slots. Most common outcome is a 30% loss. Max win is small.
         'multipliers': [4, 2, 1.2, 0.9, 0.7, 0.9, 1.2, 2, 4]
     },
     'medium': {
         'rows': 12,
-        # 13 slots. Punishing center, but decent wins on the edges.
         'multipliers': [18, 5, 2, 1.1, 0.8, 0.5, 0.3, 0.5, 0.8, 1.1, 2, 5, 18]
     },
     'high': {
         'rows': 16,
-        # 17 slots. Brutal center with 0x total loss. All or nothing.
-        # The 5 most probable outcomes are all losses.
         'multipliers': [130, 25, 8, 2, 0.5, 0.2, 0.1, 0.1, 0, 0.1, 0.1, 0.2, 0.5, 2, 8, 25, 130]
     }
 }
-TON_TO_STARS_RATE_BACKEND = 250
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -67,12 +61,13 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# --- Database Models (balance, bet_amount, winnings are now in STARS) ---
 class User(Base):
     __tablename__ = "plinko_users"
     telegram_id = Column(BigInteger, primary_key=True, index=True, autoincrement=False)
     username = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
-    balance = Column(Float, default=0.0, nullable=False)
+    balance = Column(Float, default=0.0, nullable=False) # Represents Stars
     last_free_drop_claim = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -80,18 +75,18 @@ class PlinkoDrop(Base):
     __tablename__ = "plinko_drops"
     id = Column(BigInteger, primary_key=True)
     user_id = Column(BigInteger, ForeignKey("plinko_users.telegram_id"), nullable=False)
-    bet_amount = Column(Float, nullable=False)
+    bet_amount = Column(Float, nullable=False) # Represents Stars
     risk_level = Column(String, nullable=False)
     multiplier_won = Column(Float, nullable=False)
-    winnings = Column(Float, nullable=False)
+    winnings = Column(Float, nullable=False) # Represents Stars
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
 class Deposit(Base):
     __tablename__ = "plinko_deposits"
     id = Column(BigInteger, primary_key=True)
     user_id = Column(BigInteger, ForeignKey("plinko_users.telegram_id"), nullable=False)
-    amount = Column(Float, nullable=False)
-    deposit_type = Column(String, nullable=False)
+    amount = Column(Float, nullable=False) # Represents Stars credited
+    deposit_type = Column(String, nullable=False) # 'TON', 'STARS', 'GIFT'
     status = Column(String, default="pending", index=True)
     unique_comment = Column(String, nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -132,25 +127,21 @@ if bot:
             return True
         except Exception as e:
             logger.error(f"Error checking subscription for user {user_id}: {e}")
-            return False # Fail-safe: if a channel is private or bot is not admin, deny access
-    
+            return False
+
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
         user_id = message.from_user.id
         if check_subscription(user_id):
-            # User is subscribed, send the main welcome message
             markup = types.InlineKeyboardMarkup()
-            web_app_info = types.WebAppInfo(url=WEB_APP_URL) # Use the new URL
+            web_app_info = types.WebAppInfo(url=WEB_APP_URL)
             app_button = types.InlineKeyboardButton(text="🎮 Открыть Plinko", web_app=web_app_info)
             markup.add(app_button)
             bot.send_message(message.chat.id, "Добро пожаловать в Plinko! Нажмите кнопку ниже, чтобы начать игру.", reply_markup=markup)
         else:
-            # User is not subscribed, send the subscription prompt
             markup = types.InlineKeyboardMarkup(row_width=1)
-            # Create a button for each channel
             for i, channel in enumerate(REQUIRED_CHANNELS):
                 markup.add(types.InlineKeyboardButton(text=f"Канал {i+1}", url=f"https://t.me/{channel[1:]}"))
-            # Add the "Check Subscription" button with a callback
             markup.add(types.InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_sub"))
             bot.send_message(message.chat.id, "Для доступа к боту, пожалуйста, подпишитесь на наши каналы:", reply_markup=markup)
 
@@ -162,11 +153,10 @@ if bot:
         try:
             parts = message.text.split()
             if len(parts) != 3:
-                # Updated help text
                 bot.reply_to(message, "Неверный формат. Используйте: `/add @username сумма_в_Stars`", parse_mode="Markdown")
                 return
             target_username = parts[1].replace('@', '').strip().lower()
-            amount_to_add = float(parts[2]) # This is now Stars
+            amount_to_add = float(parts[2]) # Amount is now in Stars
             if amount_to_add <= 0:
                 bot.reply_to(message, "Сумма должна быть положительной.")
                 return
@@ -182,7 +172,6 @@ if bot:
             db.add(new_deposit)
             db.commit()
             
-            # Updated confirmation messages
             bot.reply_to(message, f"✅ Успешно добавлено {amount_to_add:.2f} Stars пользователю @{target_username}. Новый баланс: {target_user.balance:.2f} Stars")
             bot.send_message(target_user.telegram_id, f"🎉 Администратор пополнил ваш баланс на {amount_to_add:.2f} Stars!")
         except Exception as e:
@@ -196,14 +185,10 @@ if bot:
     def callback_check_subscription(call):
         user_id = call.from_user.id
         if check_subscription(user_id):
-            # Subscription is now valid, send the welcome message
             bot.answer_callback_query(call.id, "Спасибо за подписку!")
-            # Delete the subscription prompt message
             bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
-            # Send the main start message
             send_welcome(call.message)
         else:
-            # Still not subscribed
             bot.answer_callback_query(call.id, "Вы еще не подписались на все каналы. Пожалуйста, проверьте снова.", show_alert=True)
     
     @bot.pre_checkout_query_handler(func=lambda query: True)
@@ -214,19 +199,24 @@ if bot:
     def successful_payment_process(message: types.Message):
         payment = message.successful_payment
         user_id = message.from_user.id
-        stars_amount = payment.total_amount
-        balance_to_add = Decimal(str(stars_amount)) / Decimal(str(TON_TO_STARS_RATE_BACKEND))
+        stars_amount = payment.total_amount # This is the amount of stars paid
+        
+        # Credit stars 1:1
+        balance_to_add = stars_amount
         db = SessionLocal()
         try:
             user = db.query(User).filter(User.telegram_id == user_id).first()
             if user:
-                user.balance = float(Decimal(str(user.balance)) + balance_to_add)
-                new_deposit = Deposit(user_id=user_id, amount=float(balance_to_add), deposit_type='STARS', status='completed')
+                user.balance += balance_to_add
+                new_deposit = Deposit(user_id=user_id, amount=balance_to_add, deposit_type='STARS', status='completed')
                 db.add(new_deposit)
                 db.commit()
-                bot.send_message(user_id, f"✅ Оплата прошла успешно! Ваш баланс пополнен на {float(balance_to_add):.4f} TON.")
+                bot.send_message(user_id, f"✅ Оплата прошла успешно! Ваш баланс пополнен на {balance_to_add} Stars.")
+            else:
+                logger.warning(f"User {user_id} not found after successful Stars payment.")
         except Exception as e:
-            db.rollback(); logger.error(f"DB error processing Stars payment for {user_id}: {e}")
+            db.rollback()
+            logger.error(f"DB error processing Stars payment for {user_id}: {e}")
         finally:
             db.close()
 
@@ -243,19 +233,19 @@ def get_user_data():
             db.add(user); db.commit(); db.refresh(user)
         last_claim_iso = user.last_free_drop_claim.isoformat() if user.last_free_drop_claim else None
         
-        # ADD 'photo_url' to the response
         return jsonify({ 
             "id": user.telegram_id, 
             "username": user.username, 
             "first_name": user.first_name, 
-            "balance": user.balance, 
+            "balance": user.balance, # Balance is in Stars
             "last_free_drop_claim": last_claim_iso,
-            "photo_url": auth_data.get('photo_url') # <-- ADD THIS LINE
+            "photo_url": auth_data.get('photo_url')
         })
     finally:
         db.close()
 
-FREE_DROP_BET_AMOUNT = Decimal('0.01')
+# 0.01 TON * 250 rate = 2.5 Stars
+FREE_DROP_BET_AMOUNT = Decimal('2.5')
 
 @app.route('/api/claim_free_drop', methods=['POST'])
 def claim_free_drop():
@@ -268,19 +258,16 @@ def claim_free_drop():
         if not user: return jsonify({"error": "User not found"}), 404
         
         now = dt.now(timezone.utc)
-        if user.last_free_drop_claim and (now - user.last_free_drop_claim) < timedelta(seconds=10):
-            return jsonify({"status": "error", "message": "Пожалуйста, подождите 10 секунд."})
+        if user.last_free_drop_claim and (now - user.last_free_drop_claim) < timedelta(hours=24):
+             return jsonify({"status": "error", "message": "Вы можете получить бесплатный бросок только раз в 24 часа."})
 
         user.last_free_drop_claim = now
         
-        # --- START: REPLACED PLINKO LOGIC ---
-        risk = 'medium' # Free drops are always medium risk
+        risk = 'medium'
         config = PLINKO_CONFIGS[risk]
         rows = config['rows']
         
-        # <<< FIX: Apply the same balanced logic as the main game
-        CENTER_BIAS = 0.2 # Use the same bias to make center drops more common
-        
+        CENTER_BIAS = 0.2
         horizontal_offset = 0
         for _ in range(rows):
             if horizontal_offset > 0:
@@ -291,21 +278,17 @@ def claim_free_drop():
                 direction = random.choice([-1, 1])
             horizontal_offset += direction
 
-        final_pos_offset = horizontal_offset
-        # <<< END OF FIX
-        
         center_index = len(config['multipliers']) // 2
-        final_index = max(0, min(len(config['multipliers']) - 1, center_index + final_pos_offset))
+        final_index = max(0, min(len(config['multipliers']) - 1, center_index + horizontal_offset))
         
         multiplier = Decimal(str(config['multipliers'][final_index]))
-        winnings = FREE_DROP_BET_AMOUNT * multiplier
+        winnings = FREE_DROP_BET_AMOUNT * multiplier # Winnings are in Stars
         
         user.balance = float(Decimal(str(user.balance)) + winnings)
         
         drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(FREE_DROP_BET_AMOUNT), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
         db.add(drop_log)
         db.commit()
-        # --- END: REPLACED PLINKO LOGIC ---
         
         return jsonify({
             "status": "success", 
@@ -313,8 +296,8 @@ def claim_free_drop():
             "new_claim_time": now.isoformat(),
             "game_result": {
                 "multiplier": float(multiplier),
-                "winnings": float(winnings),
-                "new_balance": user.balance,
+                "winnings": float(winnings), # Winnings in Stars
+                "new_balance": user.balance, # Balance in Stars
                 "final_slot_index": final_index
             }
         })
@@ -326,7 +309,9 @@ def plinko_drop():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data: return jsonify({"error": "Authentication failed"}), 401
     user_id = auth_data['id']
-    data = flask_request.get_json(); bet_amount = Decimal(str(data.get('bet', 0))); risk = data.get('risk', 'medium')
+    data = flask_request.get_json()
+    bet_amount = Decimal(str(data.get('bet', 0))) # Bet is in Stars
+    risk = data.get('risk', 'medium')
     if risk not in PLINKO_CONFIGS: return jsonify({"error": "Invalid risk level"}), 400
     db = SessionLocal()
     try:
@@ -336,10 +321,9 @@ def plinko_drop():
         
         config = PLINKO_CONFIGS[risk]; rows = config['rows']
         
-        CENTER_BIAS = 0.2 # I've also included the balance change here, see part 2
-
+        CENTER_BIAS = 0.2
         horizontal_offset = 0
-        path = [] # <<< NEW: Create a list to store the path
+        path = []
         for _ in range(rows):
             if horizontal_offset > 0: 
                 direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
@@ -348,25 +332,24 @@ def plinko_drop():
             else:
                 direction = random.choice([-1, 1])
             horizontal_offset += direction
-            path.append(direction) # <<< NEW: Add the direction (-1 for left, 1 for right) to the path
-
-        final_pos_offset = horizontal_offset
+            path.append(direction)
 
         center_index = len(config['multipliers']) // 2
-        final_index = max(0, min(len(config['multipliers']) - 1, center_index + final_pos_offset))
-        multiplier = Decimal(str(config['multipliers'][final_index])); winnings = bet_amount * multiplier
+        final_index = max(0, min(len(config['multipliers']) - 1, center_index + horizontal_offset))
+        multiplier = Decimal(str(config['multipliers'][final_index]))
+        winnings = bet_amount * multiplier # Winnings are in Stars
+        
         user.balance = float(Decimal(str(user.balance)) - bet_amount + winnings)
         drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
         db.add(drop_log); db.commit()
         
-        # <<< MODIFIED: Add the 'path' to the JSON response
         return jsonify({ 
             "status": "success", 
             "multiplier": float(multiplier), 
-            "winnings": float(winnings), 
-            "new_balance": user.balance, 
+            "winnings": float(winnings), # Winnings in Stars
+            "new_balance": user.balance, # Balance in Stars
             "final_slot_index": final_index,
-            "path": path # <<< NEW
+            "path": path
         })
     finally:
         db.close()
@@ -378,7 +361,7 @@ def plinko_drop_batch():
     
     user_id = auth_data['id']
     data = flask_request.get_json()
-    bet_amount = Decimal(str(data.get('bet', 0)))
+    bet_amount = Decimal(str(data.get('bet', 0))) # Bet is in Stars
     risk = data.get('risk', 'medium')
     count = int(data.get('count', 1))
 
@@ -392,7 +375,6 @@ def plinko_drop_batch():
         if not user or Decimal(str(user.balance)) < total_cost:
             return jsonify({"error": "Insufficient balance for the entire batch"}), 400
 
-        # --- Process the entire batch at once ---
         user.balance = float(Decimal(str(user.balance)) - total_cost)
         
         results = []
@@ -412,30 +394,25 @@ def plinko_drop_batch():
                 else:
                     direction = random.choice([-1, 1])
                 horizontal_offset += direction
-
-            final_pos_offset = horizontal_offset
+            
             center_index = len(config['multipliers']) // 2
-            final_index = max(0, min(len(config['multipliers']) - 1, center_index + final_pos_offset))
+            final_index = max(0, min(len(config['multipliers']) - 1, center_index + horizontal_offset))
             
             multiplier = Decimal(str(config['multipliers'][final_index]))
-            winnings = bet_amount * multiplier
+            winnings = bet_amount * multiplier # Winnings in Stars
             total_winnings += winnings
             
-            # We don't need to update balance here, we do it at the end
             results.append({
                 "multiplier": float(multiplier),
                 "winnings": float(winnings),
                 "final_slot_index": final_index
             })
             
-            # Log each drop
             drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
             db.add(drop_log)
 
-        # Apply total winnings to the user's balance
         user.balance = float(Decimal(str(user.balance)) + total_winnings)
-        
-        db.commit() # Commit all changes in one transaction
+        db.commit()
 
         return jsonify({
             "status": "success",
@@ -454,7 +431,9 @@ def plinko_drop_batch():
 def initiate_ton_deposit():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data: return jsonify({"error": "Auth failed"}), 401
-    user_id = auth_data['id']; unique_comment = f"plnko_{secrets.token_hex(4)}"; db = SessionLocal()
+    user_id = auth_data['id']
+    unique_comment = f"plnko_{secrets.token_hex(4)}"
+    db = SessionLocal()
     try:
         new_deposit = Deposit(user_id=user_id, amount=0, deposit_type='TON', status='pending', unique_comment=unique_comment, expires_at=dt.now(timezone.utc) + timedelta(minutes=30))
         db.add(new_deposit); db.commit()
@@ -482,29 +461,25 @@ def verify_ton_deposit():
         tx = loop.run_until_complete(check_blockchain_for_tx(comment)); loop.close()
         
         if tx:
-            # --- CONVERSION LOGIC ---
             amount_in_ton = Decimal(tx.in_msg.info.value_coins) / Decimal('1e9')
             stars_credited = amount_in_ton * Decimal(str(TON_TO_STARS_RATE))
-            # --- END CONVERSION LOGIC ---
 
             user = db.query(User).filter(User.telegram_id == user_id).first()
             user.balance = float(Decimal(str(user.balance)) + stars_credited)
             
-            # The 'amount' column now stores the credited Stars value
             pdep.status = 'completed'
-            pdep.amount = float(stars_credited) 
+            pdep.amount = float(stars_credited) # Store credited Stars amount
             db.commit()
             
-            # Inform the user about the conversion
             message_to_user = f"Успешно зачислено {float(stars_credited):.2f} Stars (из {float(amount_in_ton):.4f} TON)!"
             return jsonify({"status": "success", "message": message_to_user, "new_balance": user.balance})
         else:
-            return jsonify({"status": "pending", "message": "Transaction not found yet. Please wait a moment and try again."})
+            return jsonify({"status": "pending", "message": "Транзакция пока не найдена. Подождите немного и попробуйте снова."})
 
     except Exception as e:
         logger.error(f"Error during deposit verification: {e}")
         if db.is_active: db.rollback()
-        return jsonify({"status": "error", "message": "An unexpected error occurred during verification."}), 500
+        return jsonify({"status": "error", "message": "Произошла непредвиденная ошибка во время проверки."}), 500
     finally:
         if db.is_active: db.close()
 
@@ -531,13 +506,17 @@ async def check_blockchain_for_tx(comment):
 def create_stars_invoice():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data: return jsonify({"error": "Auth failed"}), 401
-    data = flask_request.get_json(); stars_amount = int(data.get('amount', 0))
+    data = flask_request.get_json()
+    stars_amount = int(data.get('amount', 0))
     if not (1 <= stars_amount <= 10000): return jsonify({"error": "Amount must be between 1 and 10000 Stars"}), 400
-    ton_equivalent = stars_amount / TON_TO_STARS_RATE_BACKEND
+    
     invoice_link = bot.create_invoice_link(
-        title=f"Покупка {ton_equivalent:.4f} TON", description=f"Пополнение баланса Plinko на {stars_amount} Stars.",
+        title=f"Покупка {stars_amount} Stars",
+        description=f"Пополнение баланса Plinko на {stars_amount} Stars.",
         payload=f"plinko-stars-deposit-{auth_data['id']}-{secrets.token_hex(4)}",
-        provider_token="", currency="XTR", prices=[types.LabeledPrice(label=f"{stars_amount} Stars", amount=stars_amount)]
+        provider_token="",
+        currency="XTR",
+        prices=[types.LabeledPrice(label=f"{stars_amount} Stars", amount=stars_amount)]
     )
     return jsonify({"status": "success", "invoice_link": invoice_link})
 
