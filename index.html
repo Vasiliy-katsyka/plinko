@@ -11,7 +11,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     
     <style>
-        
         :root {
             --bg-color: #0d0f1a; --surface-color: #1a1e3a; --surface-color-2: #252a4a;
             --border-color: rgba(255, 255, 255, 0.1); --text-color: #e2e8f0; --text-muted: #8a99b5;
@@ -53,57 +52,26 @@
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
-        .main-button:not(:disabled) {
-            animation: pulse-button 3s ease-in-out infinite;
-        }
+        .main-button:not(:disabled) { animation: pulse-button 3s ease-in-out infinite; }
         @keyframes pulse-glow {
             0% { box-shadow: inset 0 0 25px rgba(0,0,0,0.7), 0 0 20px rgba(168, 85, 247, 0.2); }
             50% { box-shadow: inset 0 0 25px rgba(0,0,0,0.7), 0 0 35px rgba(0, 245, 255, 0.4); }
             100% { box-shadow: inset 0 0 25px rgba(0,0,0,0.7), 0 0 20px rgba(168, 85, 247, 0.2); }
         }
         #plinko-board {
-            width: 100%;
-            aspect-ratio: 1 / 1;
-            position: relative; /* Crucial for pseudo-elements and child positioning */
-            border-radius: 20px 20px 0 0;
-            overflow: hidden; /* Keeps the cool effects contained */
-            border: 1px solid var(--border-color);
-            border-bottom: none;
-        
-            /* --- THE NEW DYNAMIC BACKGROUND --- */
-            background: linear-gradient(-45deg, 
-                var(--surface-color), 
-                #2c336b, /* A deep blue from your palette */
-                var(--surface-color-2),
-                var(--highlight-primary)
-            );
-            background-size: 300% 300%; /* Make the gradient huge so it can move */
-            animation: cosmic-flow 20s ease infinite, pulse-glow 5s ease-in-out infinite;
-            box-shadow: inset 0 0 25px rgba(0,0,0,0.7); /* The base shadow */
+            width: 100%; aspect-ratio: 1 / 1; position: relative; border-radius: 20px 20px 0 0;
+            overflow: hidden; border: 1px solid var(--border-color); border-bottom: none;
+            background: linear-gradient(-45deg, var(--surface-color), #2c336b, var(--surface-color-2), var(--highlight-primary));
+            background-size: 300% 300%; animation: cosmic-flow 20s ease infinite, pulse-glow 5s ease-in-out infinite;
+            box-shadow: inset 0 0 25px rgba(0,0,0,0.7);
         }
-        @keyframes scanline {
-            0% { transform: translateY(-100px); }
-            100% { transform: translateY(100px); }
-        }
-        
+        @keyframes scanline { 0% { transform: translateY(-100px); } 100% { transform: translateY(100px); } }
         #plinko-board::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1; /* Sits above the background but below the pegs */
-            pointer-events: none; /* Allows clicks to pass through to the board */
-        
-            /* The static grid lines */
-            background-image: 
-                repeating-linear-gradient(to right, transparent, transparent 49.5%, rgba(163, 184, 217, 0.1) 50%, transparent 50.5%, transparent 100%),
-                repeating-linear-gradient(to bottom, transparent, transparent 49.5%, rgba(163, 184, 217, 0.1) 50%, transparent 50.5%, transparent 100%);
-            background-size: 30px 30px; /* Adjust the size of the grid squares */
-            
-            /* The animated glowing scanline */
-            mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; pointer-events: none;
+            background-image: repeating-linear-gradient(to right, transparent, transparent 49.5%, rgba(163, 184, 217, 0.1) 50%, transparent 50.5%, transparent 100%),
+                              repeating-linear-gradient(to bottom, transparent, transparent 49.5%, rgba(163, 184, 217, 0.1) 50%, transparent 50.5%, transparent 100%);
+            background-size: 30px 30px; mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
             animation: scanline 4s linear infinite alternate;
         }
         .peg { width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%; position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3); transform: translate(-50%, -50%); z-index: 5;}
@@ -111,33 +79,16 @@
         #slots-container { display: flex; width: 100%; border-radius: 0 0 20px 20px; overflow: hidden; border: 1px solid var(--border-color); border-top: none; }
         .slot { flex-grow: 1; height: 45px; display: flex; justify-content: center; align-items: center; font-weight: 600; font-size: clamp(0.6rem, 2.5vw, 0.8rem); color: white; transition: all 0.3s ease; }
         @keyframes highlight-win { 0% { transform: scale(1); } 50% { transform: scale(1.1); filter: brightness(2) drop-shadow(0 0 15px var(--highlight-secondary)); } 100% { transform: scale(1); } }
-        @keyframes gradient-animation {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        .background-orb {
-            position: fixed;
-            border-radius: 50%;
-            filter: blur(80px);
-            opacity: 0.4;
-            z-index: -1; /* Place it behind everything */
-        }
-        
-        @keyframes float-orb {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            25% { transform: translate(40px, -60px) scale(1.1); }
-            50% { transform: translate(-30px, 50px) scale(0.9); }
-            75% { transform: translate(50px, 20px) scale(1.2); }
-        }
-
+        @keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .background-orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.4; z-index: -1; }
+        @keyframes float-orb { 0%, 100% { transform: translate(0, 0) scale(1); } 25% { transform: translate(40px, -60px) scale(1.1); } 50% { transform: translate(-30px, 50px) scale(0.9); } 75% { transform: translate(50px, 20px) scale(1.2); } }
         .slot.highlight { animation: highlight-win 0.6s ease-out; z-index: 10; }
         .panel { background-color: var(--surface-color); padding: 12px; border-radius: 20px; width: 100%; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         .balance-display { display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px 15px; }
         .balance-display label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
-        .balance-display .value { background: none; border: none; outline: none; color: var(--text-color); font-size: 1.1rem; font-weight: 600; text-align: right; }
+        .balance-display .value { background: none; border: none; outline: none; color: var(--text-color); font-size: 1.1rem; font-weight: 600; text-align: right; display: flex; align-items: center; }
         .collapsible-header { background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 600; user-select: none; }
-        .collapsible-header .setting-value { color: var(--text-color); } .collapsible-header .setting-label { color: var(--text-muted); }
+        .collapsible-header .setting-value { color: var(--text-color); display: inline-flex; align-items: center; } .collapsible-header .setting-label { color: var(--text-muted); }
         .toggle-icon { transition: transform 0.3s ease; } .toggle-icon.open { transform: rotate(180deg); }
         .collapsible-content { max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out; display: flex; flex-direction: column; gap: 8px; }
         .collapsible-content.open { max-height: 300px; margin-top: 5px; }
@@ -150,16 +101,7 @@
         .risk-button { flex-grow: 1; padding: 8px 5px; border: none; background: none; border-radius: 9px; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s ease; }
         .risk-button.active { background-color: var(--highlight-primary); color: white; }
         .main-button { width: 100%; padding: 18px 15px; font-weight: 700; font-size: 1.2rem; cursor: pointer; border: none; border-radius: 12px; color: var(--button-primary-text-color); text-shadow: 0 1px 3px rgba(0,0,0,0.3); box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.2s ease; display: flex; justify-content: center; align-items: center; background: var(--button-primary-bg); }
-        #auto-drop-button {
-            width: auto; /* Override width: 100% */
-            flex-grow: 1; /* Allow it to take up available space */
-            flex-shrink: 0; /* Prevent it from shrinking */
-            padding: 0 15px; /* Reduce horizontal padding */
-            font-size: 0.9rem; /* Smaller font */
-            margin-left: 10px; /* Add space between it and the input */
-            height: 40px; /* Match the stepper buttons' height */
-            border-radius: 8px;
-        }
+        #auto-drop-button { width: auto; flex-grow: 1; flex-shrink: 0; padding: 0 15px; font-size: 0.9rem; margin-left: 10px; height: 40px; border-radius: 8px; }
         .main-button:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); filter: brightness(1.1); }
         .main-button:active:not(:disabled) { transform: translateY(-1px); }
         .main-button:disabled { background: #4a5568 !important; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
@@ -169,22 +111,7 @@
         .nav-button.active::after { content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; border-radius: 50%; background-color: var(--highlight-primary); }
         .nav-button svg { width: 24px; height: 24px; fill: currentColor; }
         .info-text { text-align: center; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
-        #profile-avatar {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            border: 3px solid var(--highlight-primary);
-            margin: 0 auto 15px auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3rem;
-            font-weight: 700;
-            object-fit: cover;
-            background-color: var(--surface-color-2);
-            box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
-            overflow: hidden; /* <-- ADD THIS LINE */
-        }
+        #profile-avatar { width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--highlight-primary); margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 700; object-fit: cover; background-color: var(--surface-color-2); box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); overflow: hidden; }
         #profile-name { text-align: center; font-size: 1.8rem; font-weight: 700; }
         #profile-username { text-align: center; color: var(--text-muted); font-size: 1rem; margin-bottom: 25px; }
         .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(10,10,20,0.7); backdrop-filter: blur(8px); align-items: center; justify-content: center; }
@@ -192,7 +119,7 @@
         .modal-content h3 { margin-top: 0; }
         .modal-body { margin: 15px 0; } .modal-actions { display: flex; gap: 10px; } .modal-actions .button { flex-grow: 1; }
         #deposit-ton-modal input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); margin-bottom: 10px; text-align: center; }
-        .loader { border: 4px solid var(--surface-hover-color); border-top: 4px solid var(--primary-color); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 15px auto; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loader { border: 4px solid #3a3f78; border-top: 4px solid var(--highlight-primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 15px auto; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #deposit-amount-input { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); text-align: center; font-size: 1.1rem; }
     </style>
 </head>
@@ -200,7 +127,7 @@
     <div class="background-orb" style="width: 400px; height: 400px; top: -150px; left: -150px; background-color: var(--highlight-primary); animation: float-orb 20s infinite ease-in-out;"></div>
     <div class="background-orb" style="width: 300px; height: 300px; bottom: -100px; right: -100px; background-color: var(--highlight-secondary); animation: float-orb 25s infinite ease-in-out reverse;"></div>
     <div id="app-container">
-        <!-- Mai Game View -->
+        <!-- Main Game View -->
         <div id="main-game-view" class="view active">
             <header><h1>Plinko</h1></header>
             <div class="game-board-area">
@@ -208,15 +135,15 @@
                 <div id="slots-container"></div>
             </div>
             <div class="panel">
-                <div class="balance-display"><label>Баланс</label><div id="balance" class="value">0.00 TON</div></div>
+                <div class="balance-display"><label>Баланс</label><div id="balance" class="value">0.00</div></div>
                 <div id="settings-panel">
                     <div class="collapsible-header" id="collapsible-header">
-                        <div><span class="setting-label">Ставка: </span><span class="setting-value" id="header-bet-value">0.01</span><span class="setting-label" style="margin-left: 15px;">Риск: </span><span class="setting-value" id="header-risk-value">Средний</span></div>
+                        <div><span class="setting-label">Ставка: </span><span class="setting-value" id="header-bet-value">2.50</span><span class="setting-label" style="margin-left: 15px;">Риск: </span><span class="setting-value" id="header-risk-value">Средний</span></div>
                         <svg class="toggle-icon" id="toggle-icon" width="24" height="24" viewBox="0 0 24 24"><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
                     <div class="collapsible-content" id="collapsible-content">
-                        <div class="stepper-input-group"><label>Ставка (TON)</label><button class="stepper-button" data-action="minus" data-target="bet-amount">-</button><input type="number" id="bet-amount" value="0.01" min="0.01" step="0.01"><button class="stepper-button" data-action="plus" data-target="bet-amount">+</button></div>
-                        <div class="stepper-input-group"><label>Авто</label><button class="stepper-button" data-action="minus" data-target="auto-drop-count">-</button><input type="number" id="auto-drop-count" value="10" min="1" max="100"><button class="stepper-button" data-action="plus" data-target="auto-drop-count">+</button><button id="auto-drop-button" class="main-button">Старт</button></div>
+                        <div class="stepper-input-group"><label>Ставка</label><button class="stepper-button" data-action="minus" data-target="bet-amount">-</button><input type="number" id="bet-amount" value="2.5" min="0.5" step="0.5"><button class="stepper-button" data-action="plus" data-target="bet-amount">+</button></div>
+                        <div class="stepper-input-group"><label>Авто</label><button class="stepper-button" data-action="minus" data-target="auto-drop-count">-</button><input type="number" id="auto-drop-count" value="10" min="1" max="50"><button class="stepper-button" data-action="plus" data-target="auto-drop-count">+</button><button id="auto-drop-button" class="main-button">Старт</button></div>
                         <div class="risk-selector"><button class="risk-button" data-risk="low">Низкий</button><button class="risk-button active" data-risk="medium">Средний</button><button class="risk-button" data-risk="high">Высокий</button></div>
                     </div>
                 </div>
@@ -227,7 +154,7 @@
         <div id="free-try-view" class="view">
             <header><h1>Free Try</h1></header>
             <div class="panel">
-                <p class="info-text">Получайте бесплатный бросок (ставка 0.01 TON) каждые 24 часа!</p>
+                <p class="info-text">Получайте бесплатный бросок (ставка 2.5 Stars) каждые 24 часа!</p>
                 <div id="timer-container" style="text-align:center; margin: 20px 0;">
                     <h2 id="timer" style="font-size: 2.5rem; color: var(--highlight-secondary); margin-bottom: 5px;">00:00:00</h2>
                     <span style="color: var(--text-muted);">До следующего броска</span>
@@ -241,13 +168,13 @@
             <div class="panel">
                 <div id="profile-avatar">?</div>
                 <h2 id="profile-name">Пользователь</h2><p id="profile-username">@username</p>
-                <div class="balance-display"><label>Баланс</label><div id="profile-balance" class="value">0.00 TON</div></div>
+                <div class="balance-display"><label>Баланс</label><div id="profile-balance" class="value">0.00</div></div>
                 <h3 style="text-align:center; margin:15px 0 10px; font-size:1.1rem; color:var(--text-muted);">Пополнить баланс</h3>
                 <div style="display:flex; gap:10px; flex-direction: column;">
-                    <input type="number" id="deposit-amount-input" placeholder="Сумма (TON или Stars)" >
-                    <button id="topup-ton-btn" class="main-button">💎 TON</button>
-                    <button id="topup-stars-btn" class="main-button" style="background: var(--button-secondary-bg);">⭐ Stars</button>
-                    <button id="topup-gifts-btn" class="main-button" style="background: var(--surface-color-2);">🎁 Подарками</button>
+                    <input type="number" id="deposit-amount-input" placeholder="Сумма в Stars" >
+                    <button id="topup-ton-btn" class="main-button">Пополнить через TON</button>
+                    <button id="topup-stars-btn" class="main-button" style="background: var(--button-secondary-bg);">Пополнить через Stars</button>
+                    <button id="topup-gifts-btn" class="main-button" style="background: var(--surface-color-2);">Пополнить подарками</button>
                 </div>
             </div>
         </div>
@@ -262,21 +189,18 @@
     <!-- Modals -->
     <div id="deposit-ton-modal" class="modal">
         <div class="modal-content">
-            <h3>Депозит TON</h3>
+            <h3>Депозит через TON</h3>
             <div class="modal-body" style="text-align: center;">
-                <p>Нажмите "Открыть кошелек", чтобы создать транзакцию. Сумма будет взята из поля на экране профиля.</p>
-                
+                <p>Отправьте любую сумму TON. Ваш баланс будет пополнен в Stars по курсу <strong style="color: var(--highlight-secondary);">1 TON = 250 Stars</strong>.</p>
                 <div style="margin: 15px 0;">
                     <strong style="color: var(--text-muted);">ВАШ УНИКАЛЬНЫЙ КОММЕНТАРИЙ:</strong><br>
                     <input type="text" id="ton-deposit-comment" readonly style="background-color: var(--bg-color); border-color: #ff9800; text-align: center; font-weight: bold; margin-top: 5px;">
                     <p style="color: #ff9800; font-size: 0.8rem; margin-top: 5px;"><strong>НЕ ИЗМЕНЯЙТЕ ЭТОТ КОММЕНТАРИЙ В КОШЕЛЬКЕ!</strong></p>
                 </div>
-                
                 <div id="ton-deposit-loader" class="loader" style="display:none;"></div>
                 <p id="ton-deposit-status"></p>
             </div>
             <div class="modal-actions" style="flex-direction: column; gap: 12px;">
-                <!-- This is the new primary button -->
                 <button id="open-wallet-btn" class="main-button">Открыть кошелек</button>
                 <button id="verify-ton-deposit-btn" class="main-button" style="background: var(--surface-color-2);">Я уже оплатил (Проверить)</button>
                 <button id="close-ton-deposit-modal-btn" class="main-button" style="background: var(--stepper-bg);">Отмена</button>
@@ -287,7 +211,7 @@
         <div class="modal-content">
             <h3>Депозит Подарками</h3>
             <div class="modal-body" style="text-align: center;">
-                <p>Для пополнения подарками переведите ваш подарок @uberstard, в короткий период он вручную зачислит вам TON на баланс.</p>
+                <p>Для пополнения подарками переведите ваш подарок @uberstard, в короткий период он вручную зачислит вам Stars на баланс.</p>
             </div>
             <div class="modal-actions" style="flex-direction: column;">
                 <a href="https://t.me/uberstard" target="_blank" class="main-button" style="text-decoration: none;">Связаться с @uberstard</a>
@@ -300,8 +224,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram.WebApp;
     const API_BASE_URL = 'https://plinko-4vm7.onrender.com';
-    const FREE_DROP_INTERVAL = 10 * 1000;
-    const FREE_DROP_BET = 0.01;
+    const FREE_DROP_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+    const FREE_DROP_BET = 2.5; // Bet amount in Stars
+    const STAR_ICON_URL = 'https://github.com/Vasiliy-katsyka/plinko/blob/main/star.png?raw=true';
+    const STAR_ICON_HTML = `<img src="${STAR_ICON_URL}" alt="Stars" style="height: 1em; vertical-align: -0.1em; margin-left: 4px;">`;
 
     let currentUser = { id: null, balance: 0.00, last_free_drop_claim: null };
     let currentRisk = 'medium';
@@ -313,30 +239,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
     let GRAVITY = 0.25, DAMPING = 0.55;
     let freeDropTimerInterval = null;
-    let isAutoDropping = false;
-    let autoDropCount = 0;
-    let autoDropIntervalId = null;
     let currentDepositInfo = { address: '', comment: '' };
     
     const riskLevelConfigs = {
-        low: {
-            rows: 8,
-            cols: 10, // Visual setting for peg spacing
-            multipliers: [4, 2, 1.2, 0.9, 0.7, 0.9, 1.2, 2, 4],
-            name: "Низкий"
-        },
-        medium: {
-            rows: 12,
-            cols: 14, // Visual setting for peg spacing
-            multipliers: [18, 5, 2, 1.1, 0.8, 0.5, 0.3, 0.5, 0.8, 1.1, 2, 5, 18],
-            name: "Средний"
-        },
-        high: {
-            rows: 16,
-            cols: 18, // Visual setting for peg spacing
-            multipliers: [130, 25, 8, 2, 0.5, 0.2, 0.1, 0.1, 0, 0.1, 0.1, 0.2, 0.5, 2, 8, 25, 130],
-            name: "Высокий"
-        }
+        low: { rows: 8, cols: 10, multipliers: [4, 2, 1.2, 0.9, 0.7, 0.9, 1.2, 2, 4], name: "Низкий" },
+        medium: { rows: 12, cols: 14, multipliers: [18, 5, 2, 1.1, 0.8, 0.5, 0.3, 0.5, 0.8, 1.1, 2, 5, 18], name: "Средний" },
+        high: { rows: 16, cols: 18, multipliers: [130, 25, 8, 2, 0.5, 0.2, 0.1, 0.1, 0, 0.1, 0.1, 0.2, 0.5, 2, 8, 25, 130], name: "Высокий" }
     };
     
     const selectors = {
@@ -352,14 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
         headerRiskValue: document.getElementById('header-risk-value'), stepperButtons: document.querySelectorAll('.stepper-button'),
         topUpTonBtn: document.getElementById('topup-ton-btn'), topUpStarsBtn: document.getElementById('topup-stars-btn'),
         topUpGiftsBtn: document.getElementById('topup-gifts-btn'), depositAmountInput: document.getElementById('deposit-amount-input'),
-        depositTonModal: document.getElementById('deposit-ton-modal'), tonDepositAddress: document.getElementById('ton-deposit-address'),
-        tonDepositComment: document.getElementById('ton-deposit-comment'), verifyTonDepositBtn: document.getElementById('verify-ton-deposit-btn'),
+        depositTonModal: document.getElementById('deposit-ton-modal'), tonDepositComment: document.getElementById('ton-deposit-comment'),
+        verifyTonDepositBtn: document.getElementById('verify-ton-deposit-btn'), openWalletBtn: document.getElementById('open-wallet-btn'),
         closeTonDepositModalBtn: document.getElementById('close-ton-deposit-modal-btn'), tonDepositLoader: document.getElementById('ton-deposit-loader'),
         tonDepositStatus: document.getElementById('ton-deposit-status'), depositGiftsModal: document.getElementById('deposit-gifts-modal'),
-        closeGiftsModalBtn: document.getElementById('close-gifts-modal-btn'),
-        timerElement: document.getElementById('timer'), claimFreeDropBtn: document.getElementById('claim-free-drop-btn'),
+        closeGiftsModalBtn: document.getElementById('close-gifts-modal-btn'), timerElement: document.getElementById('timer'),
+        claimFreeDropBtn: document.getElementById('claim-free-drop-btn'),
     };
-    selectors.autoDropButton.addEventListener('click', handleAutoDrop);
     
     async function apiRequest(endpoint, method = 'POST', body = {}) {
         const config = { method, headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData } };
@@ -384,188 +291,93 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("Failed to load user data:", error);
             tg.showAlert("Не удалось загрузить данные пользователя. Попробуйте перезапустить приложение.");
-            return; // Stop execution if user data fails
+            return;
         }
         setupBoard(currentRisk);
         updateHeaderValues();
     }
 
     function updateBalanceUI() {
-        const formattedBalance = `${currentUser.balance.toFixed(4)} TON`;
-        selectors.balance.textContent = formattedBalance;
-        selectors.profileBalance.textContent = formattedBalance;
+        const formattedBalance = `${currentUser.balance.toFixed(2)} ${STAR_ICON_HTML}`;
+        selectors.balance.innerHTML = formattedBalance;
+        selectors.profileBalance.innerHTML = formattedBalance;
         selectors.betAmountInput.max = currentUser.balance;
     }
-
 
     function updateProfileUI() {
         selectors.profileName.textContent = currentUser.first_name || "User";
         selectors.profileUsername.textContent = currentUser.username ? `@${currentUser.username}` : `#${currentUser.id}`;
-        
-        // --- START: MODIFIED AVATAR LOGIC ---
-        selectors.profileAvatar.innerHTML = ''; // Clear previous content (initials)
+        selectors.profileAvatar.innerHTML = '';
         if (currentUser.photo_url) {
             const img = document.createElement('img');
             img.src = currentUser.photo_url;
-            img.style.width = '100%';
-            img.style.height = '100%';
-            img.style.objectFit = 'cover';
+            img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
             selectors.profileAvatar.appendChild(img);
-            selectors.profileAvatar.style.padding = '0'; // Remove padding if image exists
-            selectors.profileAvatar.style.fontSize = '0'; // Hide any text fallback
+            selectors.profileAvatar.style.padding = '0'; selectors.profileAvatar.style.fontSize = '0';
         } else {
             selectors.profileAvatar.textContent = (currentUser.first_name || "?").charAt(0);
-            selectors.profileAvatar.style.padding = ''; // Reset padding
-            selectors.profileAvatar.style.fontSize = '3rem'; // Reset font size
+            selectors.profileAvatar.style.padding = ''; selectors.profileAvatar.style.fontSize = '3rem';
         }
-        // --- END: MODIFIED AVATAR LOGIC ---
     }
+
     function switchView(viewId) {
         if (freeDropTimerInterval) { clearInterval(freeDropTimerInterval); freeDropTimerInterval = null; }
         selectors.views.forEach(v => v.classList.toggle('active', v.id === viewId));
         selectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
         if (viewId === 'free-try-view') { initFreeTryView(); }
     }
+
     function updateHeaderValues() {
-        selectors.headerBetValue.textContent = `${parseFloat(selectors.betAmountInput.value).toFixed(2)}`;
+        selectors.headerBetValue.innerHTML = `${parseFloat(selectors.betAmountInput.value).toFixed(2)} ${STAR_ICON_HTML}`;
         selectors.headerRiskValue.textContent = riskLevelConfigs[currentRisk].name;
     }
+
     async function handleAutoDrop() {
-        // This is now a "fire and forget" function for a whole batch
         const totalDrops = parseInt(selectors.autoDropCountInput.value, 10);
         const bet = parseFloat(selectors.betAmountInput.value);
-    
-        // Safety checks
-        if (isNaN(totalDrops) || totalDrops < 1) {
-            tg.showAlert('Пожалуйста, введите корректное количество бросков.');
-            return;
-        }
-        if (bet * totalDrops > currentUser.balance) {
-            tg.showAlert('Недостаточно средств для указанного количества авто-бросков.');
-            return;
-        }
-    
-        setControlsDisabled(true); // Disable controls during the drop
-    
+        if (isNaN(totalDrops) || totalDrops < 1) { tg.showAlert('Пожалуйста, введите корректное количество бросков.'); return; }
+        if (bet * totalDrops > currentUser.balance) { tg.showAlert('Недостаточно средств для указанного количества авто-бросков.'); return; }
+        setControlsDisabled(true);
         try {
-            // --- Call the NEW BATCH ENDPOINT ---
-            const batchResult = await apiRequest('/api/plinko_drop_batch', 'POST', {
-                bet: bet,
-                risk: currentRisk,
-                count: totalDrops
-            });
-    
-            // The balance is deducted on the server, so we just update the UI
+            const batchResult = await apiRequest('/api/plinko_drop_batch', 'POST', { bet: bet, risk: currentRisk, count: totalDrops });
             currentUser.balance = batchResult.new_balance;
             updateBalanceUI();
-    
-            // --- Animate all balls at once ---
             batchResult.results.forEach((result, index) => {
-                // Add a slight delay to each ball so they don't all drop on the exact same pixel
-                setTimeout(() => {
-                    animateSingleChip(result);
-                }, index * 50); // Stagger start times by 50ms
+                setTimeout(() => { animateSingleChip(result); }, index * 50);
             });
-    
         } catch (error) {
             console.error("Error during batch drop:", error);
-            setControlsDisabled(false); // Re-enable controls on failure
+            setControlsDisabled(false);
         }
     }
-    async function runAutoDropLoop() {
-        const totalDrops = parseInt(selectors.autoDropCountInput.value, 10);
-        const bet = parseFloat(selectors.betAmountInput.value);
-    
-        // Initial checks before starting the loop
-        if (isNaN(totalDrops) || totalDrops < 1) {
-            tg.showAlert('Пожалуйста, введите корректное количество бросков.');
-            isAutoDropping = false; // Reset state
-            handleAutoDrop(); // Visually reset the button
-            return;
-        }
-        if (bet * totalDrops > currentUser.balance) {
-            tg.showAlert('Недостаточно средств для указанного количества авто-бросков.');
-            isAutoDropping = false;
-            handleAutoDrop();
-            return;
-        }
-        
-        setControlsDisabled(true);
-        selectors.autoDropButton.disabled = false; // Keep the stop button enabled
-    
-        // The "Smart" Loop
-        for (let i = 0; i < totalDrops; i++) {
-            // Check before each drop if the user has clicked "Stop"
-            if (!isAutoDropping) {
-                console.log("Auto-drop stopped by user.");
-                break;
-            }
-    
-            // Check for sufficient balance before each drop
-            if (currentUser.balance < bet) {
-                tg.showAlert('Авто-броски остановлены: недостаточно средств.');
-                isAutoDropping = false;
-                break;
-            }
-    
-            try {
-                // This is the magic: it WAITS for performDrop's promise to resolve
-                await performDrop(false);
-                // Optional: add a small delay between drops so it doesn't feel too robotic
-                await new Promise(res => setTimeout(res, 400)); 
-            } catch (error) {
-                console.error("Error during auto-drop, stopping loop:", error);
-                isAutoDropping = false; // Stop the loop on any error
-                break;
-            }
-        }
-    
-        // --- CLEANUP after the loop finishes or breaks ---
-        isAutoDropping = false;
-        selectors.autoDropButton.textContent = 'Старт';
-        selectors.autoDropButton.style.background = 'var(--button-primary-bg)';
-        setControlsDisabled(false); // Re-enable all controls
-    }
+
     function animateSingleChip(resultFromServer) {
         const chipId = chipIdCounter++;
         const chipEl = document.createElement('div');
         chipEl.className = 'chip';
-        chipEl.style.width = `${CHIP_RADIUS * 2}px`;
-        chipEl.style.height = `${CHIP_RADIUS * 2}px`;
-    
+        chipEl.style.width = `${CHIP_RADIUS * 2}px`; chipEl.style.height = `${CHIP_RADIUS * 2}px`;
         const newChip = {
-            id: chipId,
-            x: BOARD_WIDTH / 2,
-            y: CHIP_RADIUS,
-            vx: (Math.random() - 0.5) * 4, // More initial velocity variance for a nice spread
-            vy: 0,
-            element: chipEl,
-            serverResult: resultFromServer, // This is one result from the 'results' array
-            isGuided: false,
-            targetX: undefined
+            id: chipId, x: BOARD_WIDTH / 2, y: CHIP_RADIUS, vx: (Math.random() - 0.5) * 4, vy: 0,
+            element: chipEl, serverResult: resultFromServer, isGuided: false, targetX: undefined
         };
-    
         chipEl.style.transform = `translate(${newChip.x - CHIP_RADIUS}px, ${newChip.y - CHIP_RADIUS}px)`;
         chipEl.style.visibility = 'visible';
         selectors.board.appendChild(chipEl);
-    
         activeChips.push(newChip);
-    
-        // Start the physics loop if it's not already running
         if (!isDropping) {
             isDropping = true;
             document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
             requestAnimationFrame(updatePhysics);
         }
     }
+
     function updateFreeDropTimer() {
         const lastClaim = currentUser.last_free_drop_claim;
         if (!lastClaim) { selectors.timerElement.textContent = "Готово!"; selectors.claimFreeDropBtn.disabled = false; return; }
         const nextAvailableTime = new Date(lastClaim).getTime() + FREE_DROP_INTERVAL;
         const timeLeft = nextAvailableTime - Date.now();
         if (timeLeft <= 0) {
-            selectors.timerElement.textContent = "Готово!";
-            selectors.claimFreeDropBtn.disabled = false;
+            selectors.timerElement.textContent = "Готово!"; selectors.claimFreeDropBtn.disabled = false;
             if (freeDropTimerInterval) clearInterval(freeDropTimerInterval);
         } else {
             selectors.claimFreeDropBtn.disabled = true;
@@ -573,81 +385,24 @@ document.addEventListener('DOMContentLoaded', () => {
             selectors.timerElement.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
         }
     }
-    function copyToClipboard(element, fieldName) {
-        if (!navigator.clipboard) {
-            tg.showAlert('Ваш браузер не поддерживает копирование.');
-            return;
-        }
-        navigator.clipboard.writeText(element.value).then(() => {
-            tg.HapticFeedback.notificationOccurred('success');
-            tg.showAlert(`${fieldName} скопирован в буфер обмена!`);
-        }).catch(err => {
-            tg.showAlert(`Не удалось скопировать: ${err}`);
-        });
-    }
+
     function initFreeTryView() { updateFreeDropTimer(); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
-    // In your HTML <script> tag
-    
+
     async function handleClaimFreeDrop() {
         selectors.claimFreeDropBtn.disabled = true;
         try {
-            // The backend now handles the entire game logic for the free drop.
-            // It will return the game result just like a normal drop.
             const result = await apiRequest('/api/claim_free_drop', 'POST', {});
-    
             if (result.status === 'success') {
-                tg.showAlert(result.message); // "Бесплатный бросок получен!"
+                tg.showAlert(result.message);
                 currentUser.last_free_drop_claim = result.new_claim_time;
-                
-                // --- NEW UX IMPROVEMENT ---
-                // 1. Switch to the main game view
                 switchView('main-game-view');
-                
-                // 2. Set the risk level to medium visually, which is what the server used
                 setupBoard('medium'); 
-                
-                // 3. Update the user's balance on the UI immediately
                 currentUser.balance = result.game_result.new_balance;
                 updateBalanceUI();
-    
-                // --- ANIMATION FIX ---
-                // Now, we create the chip and animate it using the server's result.
-                // This reuses our existing physics logic perfectly.
-                const gameResult = result.game_result;
-                const chipId = chipIdCounter++;
-                const chipEl = document.createElement('div');
-                chipEl.className = 'chip';
-                chipEl.style.width = `${CHIP_RADIUS * 2}px`;
-                chipEl.style.height = `${CHIP_RADIUS * 2}px`;
-    
-                const newChip = {
-                    id: chipId,
-                    x: BOARD_WIDTH / 2,
-                    y: CHIP_RADIUS,
-                    vx: (Math.random() - 0.5) * 2,
-                    vy: 0,
-                    element: chipEl,
-                    serverResult: gameResult, // Use the result from the free drop API
-                    isGuided: false,
-                    targetX: undefined
-                };
-    
-                chipEl.style.transform = `translate(${newChip.x - CHIP_RADIUS}px, ${newChip.y - CHIP_RADIUS}px)`;
-                chipEl.style.visibility = 'visible';
-                selectors.board.appendChild(chipEl);
-                
-                activeChips.push(newChip);
-    
-                if (!isDropping) {
-                    isDropping = true;
-                    document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
-                    requestAnimationFrame(updatePhysics);
-                }
-                // --- END OF FIXES ---
-    
+                animateSingleChip(result.game_result);
             } else {
                 tg.showAlert(result.message);
-                selectors.claimFreeDropBtn.disabled = false; // Re-enable on failure
+                selectors.claimFreeDropBtn.disabled = false;
             }
         } catch (e) {
             console.error("Error claiming free drop:", e);
@@ -656,11 +411,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getSlotColor(m) {
-        if (m >= 20) return 'var(--slot-high)';
-        if (m >= 1) return 'var(--slot-mid)';
-        if (m > 0) return 'var(--slot-low)';
-        return 'var(--slot-zero)';
+        if (m >= 20) return 'var(--slot-high)'; if (m >= 1) return 'var(--slot-mid)';
+        if (m > 0) return 'var(--slot-low)'; return 'var(--slot-zero)';
     }
+
     function setupBoard(risk) {
         if (isDropping) return; currentRisk = risk; updateHeaderValues();
         BOARD_WIDTH = selectors.board.clientWidth; if (BOARD_WIDTH === 0) { setTimeout(() => setupBoard(risk), 50); return; }
@@ -678,198 +432,83 @@ document.addEventListener('DOMContentLoaded', () => {
         config.multipliers.forEach(m => { const slot = document.createElement('div'); slot.className = 'slot'; slot.dataset.multiplier = m; slot.textContent = `${m}x`; slot.style.backgroundColor = getSlotColor(m); selectors.slotsContainer.appendChild(slot); });
         selectors.riskButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.risk === risk));
     }
-    function performDrop(isFree = false) {
-        // This function now returns a Promise
-        return new Promise(async (resolve, reject) => {
-            const bet = isFree ? FREE_DROP_BET : parseFloat(selectors.betAmountInput.value);
-            if (!isFree && bet > currentUser.balance) {
-                tg.showAlert("Недостаточно средств!");
-                reject("Insufficient balance"); // Reject the promise on failure
-                return;
-            }
-            
-            // We disable controls here, but they will be re-enabled by the auto-drop loop manager
-            if (!isAutoDropping) setControlsDisabled(true);
-    
-            try {
-                const result = await apiRequest('/api/plinko_drop', 'POST', { bet, risk: currentRisk });
-    
-                if (!isFree) {
-                    currentUser.balance -= bet;
-                }
-                updateBalanceUI();
-    
-                const chipId = chipIdCounter++;
-                const chipEl = document.createElement('div');
-                chipEl.className = 'chip';
-                chipEl.style.width = `${CHIP_RADIUS * 2}px`;
-                chipEl.style.height = `${CHIP_RADIUS * 2}px`;
-    
-                const newChip = {
-                    id: chipId,
-                    x: BOARD_WIDTH / 2,
-                    y: CHIP_RADIUS,
-                    vx: (Math.random() - 0.5) * 2,
-                    vy: 0,
-                    element: chipEl,
-                    serverResult: result,
-                    isGuided: false,
-                    targetX: undefined,
-                    resolvePromise: resolve // <<< NEW: Store the 'resolve' function on the chip
-                };
-    
-                chipEl.style.transform = `translate(${newChip.x - CHIP_RADIUS}px, ${newChip.y - CHIP_RADIUS}px)`;
-                chipEl.style.visibility = 'visible';
-                selectors.board.appendChild(chipEl);
-    
-                activeChips.push(newChip);
-    
-                if (!isDropping) {
-                    isDropping = true;
-                    document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
-                    requestAnimationFrame(updatePhysics);
-                }
-    
-            } catch (error) {
-                if (!isAutoDropping) setControlsDisabled(false);
-                reject(error); // Reject the promise if the API call fails
-            }
-        });
-    }
+
     async function handleSingleDrop() {
-        // This is almost identical to the old performDrop, but simplified
         setControlsDisabled(true);
         try {
             const bet = parseFloat(selectors.betAmountInput.value);
             if (bet > currentUser.balance) {
-                tg.showAlert("Недостаточно средств!");
-                setControlsDisabled(false);
-                return;
+                tg.showAlert("Недостаточно средств!"); setControlsDisabled(false); return;
             }
-            
             const result = await apiRequest('/api/plinko_drop', 'POST', { bet: bet, risk: currentRisk });
             currentUser.balance = result.new_balance;
             updateBalanceUI();
             animateSingleChip(result);
-    
         } catch(error) {
             console.error("Error during single drop:", error);
             setControlsDisabled(false);
         }
     }
+
     function updatePhysics() {
-        // Stop the animation loop if there are no more chips on the board
         if (activeChips.length === 0) {
-            isDropping = false;
-            setControlsDisabled(false); // This line is now very important!
-            // We can also update the final balance here for perfect accuracy
+            isDropping = false; setControlsDisabled(false);
             apiRequest('/api/user_data', 'POST', {}).then(userData => {
-                currentUser.balance = userData.balance;
-                updateBalanceUI();
+                currentUser.balance = userData.balance; updateBalanceUI();
             });
             return;
         }
-    
-        // Loop through all active chips (backwards, as we might remove them)
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
-    
-            // <<< HYBRID LOGIC START >>>
-            // Check if the chip is in the lower part of the board and hasn't been guided yet
             const takeoverHeight = BOARD_HEIGHT * 0.75; 
             if (chip.y > takeoverHeight && !chip.isGuided) {
-                // --- This is the TAKEOVER point ---
-                chip.isGuided = true; // Mark the chip as guided so this only runs once
-    
-                // Get the final slot index from the server's result
+                chip.isGuided = true;
                 const finalSlotIndex = chip.serverResult.final_slot_index;
                 const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
-                
                 if (targetSlot) {
-                    // Calculate the exact center X coordinate of the target slot
-                    const slotRect = targetSlot.getBoundingClientRect();
-                    const boardRect = selectors.board.getBoundingClientRect();
-                    const targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
-                    chip.targetX = targetX; // Store the target X on the chip object
+                    const slotRect = targetSlot.getBoundingClientRect(), boardRect = selectors.board.getBoundingClientRect();
+                    chip.targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
                 }
             }
-            // <<< HYBRID LOGIC END >>>
-    
-            // Apply physics
             if (chip.isGuided && chip.targetX !== undefined) {
-                // --- GUIDED MOVEMENT ---
-                // If guided, we override the horizontal velocity to smoothly move to the target
-                const steerForce = (chip.targetX - chip.x) * 0.1; // The 0.1 controls how strongly it steers
-                chip.vx = steerForce;
-                chip.vy += GRAVITY; // Gravity still applies for a natural fall
+                chip.vx = (chip.targetX - chip.x) * 0.1; chip.vy += GRAVITY;
             } else {
-                // --- NORMAL PHYSICS MOVEMENT ---
-                chip.vy += GRAVITY; // Apply gravity
+                chip.vy += GRAVITY;
             }
-    
-            // Update position
-            chip.x += chip.vx;
-            chip.y += chip.vy;
-            
-            // Wall collisions
+            chip.x += chip.vx; chip.y += chip.vy;
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
                 chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
-    
-            // Peg collisions (ONLY if not in the final guided fall)
             if (!chip.isGuided) {
                 pegs.forEach(peg => {
-                    const dx = chip.x - peg.x;
-                    const dy = chip.y - peg.y;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx + dy*dy);
                     if (dist < CHIP_RADIUS + PEG_RADIUS) {
-                        const angle = Math.atan2(dy, dx);
-                        const overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
-                        chip.x += Math.cos(angle) * overlap;
-                        chip.y += Math.sin(angle) * overlap;
-                        const normalX = dx / dist;
-                        const normalY = dy / dist;
-                        const dot = chip.vx * normalX + chip.vy * normalY;
-                        chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
-                        chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
-                        chip.vx += (Math.random() - 0.5) * 0.25; // Add a tiny bit of random spin
+                        const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
+                        chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
+                        const normalX = dx / dist, normalY = dy / dist, dot = chip.vx * normalX + chip.vy * normalY;
+                        chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                        chip.vx += (Math.random() - 0.5) * 0.25;
                     }
                 });
             }
-            
-            // Update the element's position on screen
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
-    
-    
-            // Check if chip has fallen into a slot
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
-                endDrop(chip);
-                activeChips.splice(i, 1); // Remove chip from the active list
+                endDrop(chip); activeChips.splice(i, 1);
             }
         }
-    
-        // Continue the animation loop
         requestAnimationFrame(updatePhysics);
     }
+
     function endDrop(chip) {
         chip.element.remove();
         const result = chip.serverResult;
-        
-        // We don't update the balance here anymore because it was updated once for the whole batch.
-        // This prevents the balance display from flickering wildly.
-    
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
         if (targetSlot) {
-            // To avoid visual chaos, let's make the highlight more subtle for batches
             targetSlot.classList.add('highlight');
             setTimeout(() => targetSlot.classList.remove('highlight'), 600);
         }
-    
-        // Only give haptic feedback for significant wins to avoid buzzing constantly
-        if (result.multiplier >= 10) {
-            tg.HapticFeedback.notificationOccurred('success');
-        }
+        if (result.multiplier >= 10) { tg.HapticFeedback.notificationOccurred('success'); }
     }
     
     function setControlsDisabled(disabled) {
@@ -882,20 +521,22 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.collapsibleHeader.style.opacity = disabled ? '0.7' : '1';
         if (!disabled) { selectors.autoDropButton.disabled = false; }
     }
+
     function handleBetChange() {
         let b = parseFloat(selectors.betAmountInput.value);
-        if (isNaN(b) || b < 0.01) b = 0.01;
+        if (isNaN(b) || b < 0.5) b = 0.5;
         if (b > currentUser.balance) b = currentUser.balance;
         selectors.betAmountInput.value = b.toFixed(2);
         updateHeaderValues();
     }
+
     function handleStepper(event) {
         const btn = event.currentTarget, action = btn.dataset.action, targetId = btn.dataset.target, input = document.getElementById(targetId);
         if (!input) return;
         if (targetId === 'bet-amount') {
             let val = parseFloat(input.value) || 0;
-            let step = 0.01;
-            if (val >= 1) step = 0.1; if (val >= 10) step = 1;
+            let step = 1;
+            if (val >= 10) step = 5; if (val >= 50) step = 10;
             if (action === 'plus') val += step; else if (action === 'minus') val -= step;
             val = Math.max(parseFloat(input.min), val);
             input.value = val.toFixed(2);
@@ -907,31 +548,17 @@ document.addEventListener('DOMContentLoaded', () => {
             input.value = val;
         }
     }
+
     async function handleTopUpTON() {
-        // Check if an amount is entered on the profile screen
-        const amountStr = selectors.depositAmountInput.value;
-        if (amountStr && (isNaN(parseFloat(amountStr)) || parseFloat(amountStr) <= 0)) {
-            tg.showAlert("Пожалуйста, введите корректную сумму для пополнения или оставьте поле пустым.");
-            return;
-        }
-    
         selectors.topUpTonBtn.disabled = true;
         selectors.tonDepositStatus.textContent = "Создание запроса...";
         selectors.tonDepositLoader.style.display = 'block';
         selectors.depositTonModal.style.display = 'flex';
-    
         try {
             const res = await apiRequest('/api/initiate_ton_deposit', 'POST', {});
-            // Store the address and comment for later use
-            currentDepositInfo = {
-                address: res.recipient_address,
-                comment: res.comment
-            };
-            
-            // Update the UI
+            currentDepositInfo = { address: res.recipient_address, comment: res.comment };
             selectors.tonDepositComment.value = res.comment;
             selectors.tonDepositStatus.textContent = "Готово к отправке.";
-    
         } catch (e) {
             selectors.tonDepositStatus.textContent = "Ошибка. Попробуйте снова.";
         } finally {
@@ -939,17 +566,13 @@ document.addEventListener('DOMContentLoaded', () => {
             selectors.tonDepositLoader.style.display = 'none';
         }
     }
+
     async function verifyTONDeposit() {
-        if (!currentDepositInfo.comment) {
-            tg.showAlert("Ошибка: комментарий для проверки не найден. Пожалуйста, начните процесс пополнения заново.");
-            return;
-        }
-    
+        if (!currentDepositInfo.comment) { tg.showAlert("Ошибка: комментарий для проверки не найден."); return; }
         selectors.verifyTonDepositBtn.disabled = true;
         selectors.tonDepositStatus.textContent = "Проверяем транзакцию в блокчейне...";
         selectors.tonDepositLoader.style.display = 'block';
         try {
-            // Use the stored comment instead of reading from the input
             const res = await apiRequest('/api/verify_ton_deposit', 'POST', { comment: currentDepositInfo.comment });
             if (res.status === 'success') {
                 tg.showAlert(res.message);
@@ -966,6 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
             selectors.tonDepositLoader.style.display = 'none';
         }
     }
+
     async function handleTopUpStars() {
         const amount = parseInt(selectors.depositAmountInput.value);
         if (isNaN(amount) || amount < 1) { tg.showAlert("Пожалуйста, введите корректную сумму звезд для пополнения."); return; }
@@ -983,10 +607,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally { selectors.topUpStarsBtn.disabled = false; }
     }
 
+    // Event Listeners
     selectors.navButtons.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
     selectors.collapsibleHeader.addEventListener('click', () => { selectors.collapsibleContent.classList.toggle('open'); selectors.toggleIcon.classList.toggle('open'); });
     selectors.riskButtons.forEach(b => b.addEventListener('click', () => setupBoard(b.dataset.risk)));
     selectors.dropButton.addEventListener('click', handleSingleDrop);
+    selectors.autoDropButton.addEventListener('click', handleAutoDrop);
     selectors.betAmountInput.addEventListener('change', handleBetChange);
     selectors.stepperButtons.forEach(b => b.addEventListener('click', handleStepper));
     window.addEventListener('resize', () => setupBoard(currentRisk));
@@ -997,37 +623,18 @@ document.addEventListener('DOMContentLoaded', () => {
     selectors.verifyTonDepositBtn.addEventListener('click', verifyTONDeposit);
     selectors.closeTonDepositModalBtn.addEventListener('click', () => selectors.depositTonModal.style.display = 'none');
     selectors.claimFreeDropBtn.addEventListener('click', handleClaimFreeDrop);
-    selectors.openWalletBtn = document.getElementById('open-wallet-btn');
-
-    // Then add the event listener
+    
     selectors.openWalletBtn.addEventListener('click', () => {
         if (!currentDepositInfo.address || !currentDepositInfo.comment) {
-            tg.showAlert("Ошибка: данные для депозита не были загружены. Пожалуйста, закройте и попробуйте снова.");
-            return;
+            tg.showAlert("Ошибка: данные для депозита не были загружены."); return;
         }
-    
-        const amountStr = selectors.depositAmountInput.value;
-        let amountNanoTON = '';
-    
-        if (amountStr && parseFloat(amountStr) > 0) {
-            // Convert TON to nanotons (1 TON = 10^9 nanotons)
-            amountNanoTON = `&amount=${Math.floor(parseFloat(amountStr) * 1e9)}`;
-        }
-    
         const encodedComment = encodeURIComponent(currentDepositInfo.comment);
-        
-        // Construct the ton:// URL
-        const tonUrl = `ton://transfer/${currentDepositInfo.address}?text=${encodedComment}${amountNanoTON}`;
-        
-        // Open the link
-        // Using an anchor tag is more robust on some mobile devices
+        const tonUrl = `ton://transfer/${currentDepositInfo.address}?text=${encodedComment}`;
         const link = document.createElement('a');
-        link.href = tonUrl;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        link.href = tonUrl; link.target = '_blank';
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
     });
+
     initializeApp();
 });
 </script>
