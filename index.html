@@ -332,21 +332,34 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.headerRiskValue.textContent = riskLevelConfigs[currentRisk].name;
     }
 
+    // --- MODIFIED FUNCTION ---
     async function handleAutoDrop() {
         const totalDrops = parseInt(selectors.autoDropCountInput.value, 10);
         const bet = parseFloat(selectors.betAmountInput.value);
+        const totalCost = totalDrops * bet;
+
         if (isNaN(totalDrops) || totalDrops < 1) { tg.showAlert('Пожалуйста, введите корректное количество бросков.'); return; }
-        if (bet * totalDrops > currentUser.balance) { tg.showAlert('Недостаточно средств для указанного количества авто-бросков.'); return; }
+        if (totalCost > currentUser.balance) { tg.showAlert('Недостаточно средств для указанного количества авто-бросков.'); return; }
+        
         setControlsDisabled(true);
+
+        // 1. Visually deduct the total cost immediately
+        currentUser.balance -= totalCost;
+        updateBalanceUI();
+
         try {
             const batchResult = await apiRequest('/api/plinko_drop_batch', 'POST', { bet: bet, risk: currentRisk, count: totalDrops });
-            currentUser.balance = batchResult.new_balance;
-            updateBalanceUI();
+            
+            // 2. Animate chips. The winnings will be added back in endDrop() for each chip.
             batchResult.results.forEach((result, index) => {
                 setTimeout(() => { animateSingleChip(result); }, index * 50);
             });
+
         } catch (error) {
             console.error("Error during batch drop:", error);
+            // If API fails, revert the balance change and re-enable controls
+            currentUser.balance += totalCost;
+            updateBalanceUI();
             setControlsDisabled(false);
         }
     }
@@ -397,8 +410,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentUser.last_free_drop_claim = result.new_claim_time;
                 switchView('main-game-view');
                 setupBoard('medium'); 
+                
+                // For free drops, we can update balance instantly as there's no bet cost.
                 currentUser.balance = result.game_result.new_balance;
                 updateBalanceUI();
+
                 animateSingleChip(result.game_result);
             } else {
                 tg.showAlert(result.message);
@@ -433,31 +449,48 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.riskButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.risk === risk));
     }
 
+    // --- MODIFIED FUNCTION ---
     async function handleSingleDrop() {
+        const bet = parseFloat(selectors.betAmountInput.value);
+        if (bet > currentUser.balance) {
+            tg.showAlert("Недостаточно средств!");
+            return;
+        }
+        
         setControlsDisabled(true);
+        
+        // 1. Visually deduct the bet from the local balance object immediately
+        currentUser.balance -= bet;
+        updateBalanceUI();
+
         try {
-            const bet = parseFloat(selectors.betAmountInput.value);
-            if (bet > currentUser.balance) {
-                tg.showAlert("Недостаточно средств!"); setControlsDisabled(false); return;
-            }
             const result = await apiRequest('/api/plinko_drop', 'POST', { bet: bet, risk: currentRisk });
-            currentUser.balance = result.new_balance;
-            updateBalanceUI();
+            
+            // 2. Animate the chip. The winnings will be added back in endDrop().
+            // We NO LONGER update the balance with result.new_balance here.
             animateSingleChip(result);
+
         } catch(error) {
             console.error("Error during single drop:", error);
+            // If the API call fails, give the bet back to the user and re-enable controls
+            currentUser.balance += bet;
+            updateBalanceUI();
             setControlsDisabled(false);
         }
     }
 
     function updatePhysics() {
         if (activeChips.length === 0) {
-            isDropping = false; setControlsDisabled(false);
+            isDropping = false; 
+            setControlsDisabled(false);
+            // As a final sync, fetch the true balance from the server to prevent any visual drift.
             apiRequest('/api/user_data', 'POST', {}).then(userData => {
-                currentUser.balance = userData.balance; updateBalanceUI();
-            });
+                currentUser.balance = userData.balance; 
+                updateBalanceUI();
+            }).catch(e => console.error("Final balance sync failed", e));
             return;
         }
+
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
             const takeoverHeight = BOARD_HEIGHT * 0.75; 
@@ -500,9 +533,15 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(updatePhysics);
     }
 
+    // --- MODIFIED FUNCTION ---
     function endDrop(chip) {
         chip.element.remove();
         const result = chip.serverResult;
+        
+        // 3. Add this chip's specific winnings to the local balance and update the UI.
+        currentUser.balance += result.winnings;
+        updateBalanceUI();
+
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
         if (targetSlot) {
             targetSlot.classList.add('highlight');
@@ -516,10 +555,10 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.riskButtons.forEach(b => b.disabled = disabled);
         selectors.stepperButtons.forEach(b => b.disabled = disabled);
         selectors.betAmountInput.disabled = disabled;
+        selectors.autoDropButton.disabled = disabled; // Also disable auto drop button
         selectors.autoDropCountInput.disabled = disabled;
         selectors.collapsibleHeader.style.pointerEvents = disabled ? 'none' : 'auto';
         selectors.collapsibleHeader.style.opacity = disabled ? '0.7' : '1';
-        if (!disabled) { selectors.autoDropButton.disabled = false; }
     }
 
     function handleBetChange() {
