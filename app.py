@@ -201,7 +201,6 @@ if bot:
         user_id = message.from_user.id
         stars_amount = payment.total_amount # This is the amount of stars paid
         
-        # Credit stars 1:1
         balance_to_add = stars_amount
         db = SessionLocal()
         try:
