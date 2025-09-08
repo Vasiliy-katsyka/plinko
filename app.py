@@ -34,6 +34,7 @@ ADMIN_IDS_STR = os.environ.get("ADMIN_USER_IDS", "")
 REQUIRED_CHANNELS = ['@CompactTelegram', '@giftnewstoday', '@myzone196']
 WEB_APP_URL = "https://vasiliy-katsyka.github.io/plinko"
 ADMIN_USER_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',') if admin_id.strip()]
+TON_TO_STARS_RATE = 250 
 
 PLINKO_CONFIGS = {
     'low': {
@@ -161,24 +162,29 @@ if bot:
         try:
             parts = message.text.split()
             if len(parts) != 3:
-                bot.reply_to(message, "Неверный формат. Используйте: `/add @username сумма_в_TON`", parse_mode="Markdown")
+                # Updated help text
+                bot.reply_to(message, "Неверный формат. Используйте: `/add @username сумма_в_Stars`", parse_mode="Markdown")
                 return
             target_username = parts[1].replace('@', '').strip().lower()
-            amount_to_add = float(parts[2])
+            amount_to_add = float(parts[2]) # This is now Stars
             if amount_to_add <= 0:
                 bot.reply_to(message, "Сумма должна быть положительной.")
                 return
+                
             db = SessionLocal()
             target_user = db.query(User).filter(func.lower(User.username) == target_username).first()
             if not target_user:
                 bot.reply_to(message, f"Пользователь @{target_username} не найден.")
                 return
+                
             target_user.balance += amount_to_add
             new_deposit = Deposit(user_id=target_user.telegram_id, amount=amount_to_add, deposit_type='GIFT', status='completed')
             db.add(new_deposit)
             db.commit()
-            bot.reply_to(message, f"✅ Успешно добавлено {amount_to_add:.4f} TON пользователю @{target_username}. Новый баланс: {target_user.balance:.4f} TON")
-            bot.send_message(target_user.telegram_id, f"🎉 Администратор пополнил ваш баланс на {amount_to_add:.4f} TON!")
+            
+            # Updated confirmation messages
+            bot.reply_to(message, f"✅ Успешно добавлено {amount_to_add:.2f} Stars пользователю @{target_username}. Новый баланс: {target_user.balance:.2f} Stars")
+            bot.send_message(target_user.telegram_id, f"🎉 Администратор пополнил ваш баланс на {amount_to_add:.2f} Stars!")
         except Exception as e:
             logger.error(f"Error in /add command: {e}")
             bot.reply_to(message, "Произошла ошибка при выполнении команды.")
@@ -460,49 +466,47 @@ def initiate_ton_deposit():
 def verify_ton_deposit():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data: return jsonify({"error": "Auth failed"}), 401
-    user_id = auth_data['id']; data = flask_request.get_json(); comment = data.get('comment'); db = SessionLocal()
     
-    # --- START: Added Retry Logic ---
-    max_retries = 3
-    retry_delay_seconds = 5
+    user_id = auth_data['id']
+    data = flask_request.get_json()
+    comment = data.get('comment')
+    db = SessionLocal()
     
-    for attempt in range(max_retries):
-        try:
-            # The original logic is now inside the loop
-            pdep = db.query(Deposit).filter(Deposit.user_id == user_id, Deposit.unique_comment == comment, Deposit.status == 'pending').first()
-            if not pdep: return jsonify({"status": "not_found", "message": "Deposit request not found or already processed."})
-            if pdep.expires_at < dt.now(timezone.utc):
-                pdep.status = 'expired'; db.commit(); return jsonify({"status": "expired", "message": "Deposit request has expired."})
-            
-            loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
-            tx = loop.run_until_complete(check_blockchain_for_tx(comment)); loop.close()
-            
-            if tx:
-                amount_credited = Decimal(tx.in_msg.info.value_coins) / Decimal('1e9')
-                user = db.query(User).filter(User.telegram_id == user_id).first()
-                user.balance = float(Decimal(str(user.balance)) + amount_credited)
-                pdep.status = 'completed'; pdep.amount = float(amount_credited); db.commit()
-                db.close() # Close DB connection before returning
-                return jsonify({"status": "success", "message": f"Credited {amount_credited:.4f} TON", "new_balance": user.balance})
-            else:
-                if attempt < max_retries - 1:
-                    logger.info(f"Tx not found for comment {comment} on attempt {attempt + 1}. Retrying in {retry_delay_seconds}s...")
-                    db.close() # Close session before sleeping
-                    time.sleep(retry_delay_seconds)
-                    db = SessionLocal() # Reopen session for next attempt
-                else:
-                    db.close()
-                    return jsonify({"status": "pending", "message": "Transaction not found yet. Please wait a moment and try again."})
+    try:
+        pdep = db.query(Deposit).filter(Deposit.user_id == user_id, Deposit.unique_comment == comment, Deposit.status == 'pending').first()
+        if not pdep: return jsonify({"status": "not_found", "message": "Deposit request not found or already processed."})
+        if pdep.expires_at < dt.now(timezone.utc):
+            pdep.status = 'expired'; db.commit(); return jsonify({"status": "expired", "message": "Deposit request has expired."})
+        
+        loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
+        tx = loop.run_until_complete(check_blockchain_for_tx(comment)); loop.close()
+        
+        if tx:
+            # --- CONVERSION LOGIC ---
+            amount_in_ton = Decimal(tx.in_msg.info.value_coins) / Decimal('1e9')
+            stars_credited = amount_in_ton * Decimal(str(TON_TO_STARS_RATE))
+            # --- END CONVERSION LOGIC ---
 
-        except Exception as e:
-            logger.error(f"Error during deposit verification: {e}")
-            if 'db' in locals() and db.is_active: db.close()
-            return jsonify({"status": "error", "message": "An unexpected error occurred during verification."}), 500
-    # --- END: Added Retry Logic ---
-    
-    # Fallback in case loop finishes without returning (should not happen)
-    if 'db' in locals() and db.is_active: db.close()
-    return jsonify({"status": "pending", "message": "Could not find transaction after multiple attempts."})
+            user = db.query(User).filter(User.telegram_id == user_id).first()
+            user.balance = float(Decimal(str(user.balance)) + stars_credited)
+            
+            # The 'amount' column now stores the credited Stars value
+            pdep.status = 'completed'
+            pdep.amount = float(stars_credited) 
+            db.commit()
+            
+            # Inform the user about the conversion
+            message_to_user = f"Успешно зачислено {float(stars_credited):.2f} Stars (из {float(amount_in_ton):.4f} TON)!"
+            return jsonify({"status": "success", "message": message_to_user, "new_balance": user.balance})
+        else:
+            return jsonify({"status": "pending", "message": "Transaction not found yet. Please wait a moment and try again."})
+
+    except Exception as e:
+        logger.error(f"Error during deposit verification: {e}")
+        if db.is_active: db.rollback()
+        return jsonify({"status": "error", "message": "An unexpected error occurred during verification."}), 500
+    finally:
+        if db.is_active: db.close()
 
 async def check_blockchain_for_tx(comment):
     provider = None
