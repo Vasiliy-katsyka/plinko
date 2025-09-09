@@ -494,9 +494,9 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
             
-            // --- НОВАЯ ЛОГИКА: "ВЕДОМАЯ ФИЗИКА" ---
-            // Определяем высоту, на которой мы "перехватываем" управление шариком
-            const takeoverHeight = BOARD_HEIGHT * 0.75; 
+            // Определяем высоту, на которой "перехватываем" управление.
+            // Увеличили значение с 0.75 до 0.88 для более естественной анимации.
+            const takeoverHeight = BOARD_HEIGHT * 0.88; 
 
             // Если шарик опустился достаточно низко и им еще не начали управлять
             if (chip.y > takeoverHeight && !chip.isGuided) {
@@ -511,27 +511,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // --- ПРИМЕНЕНИЕ СИЛ ---
+            // ПРИМЕНЕНИЕ СИЛ
             if (chip.isGuided && chip.targetX !== undefined) {
                 // В режиме наведения: плавно двигаем шарик к целевой X-координате
-                chip.vx = (chip.targetX - chip.x) * 0.1; // Коэффициент 0.1 для плавности
-                chip.vy += GRAVITY; // Гравитация продолжает действовать
+                chip.vx = (chip.targetX - chip.x) * 0.1; 
+                chip.vy += GRAVITY; 
             } else {
-                // В режиме свободного падения (верхняя часть поля)
+                // В режиме свободного падения
                 chip.vy += GRAVITY;
             }
             
-            // --- ОБНОВЛЕНИЕ ПОЗИЦИИ ---
+            // ОБНОВЛЕНИЕ ПОЗИЦИИ
             chip.x += chip.vx;
             chip.y += chip.vy;
 
-            // --- СТОЛКНОВЕНИЯ СО СТЕНАМИ (всегда активно) ---
+            // СТОЛКНОВЕНИЯ СО СТЕНАМИ
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
                 chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
 
-            // --- СТОЛКНОВЕНИЯ С ПРЕПЯТСТВИЯМИ (только в режиме свободного падения) ---
+            // СТОЛКНОВЕНИЯ С ПРЕПЯТСТВИЯМИ (только в режиме свободного падения)
             if (!chip.isGuided) {
                 pegs.forEach(peg => {
                     const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx + dy*dy);
@@ -543,13 +543,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const dot = chip.vx * normalX + chip.vy * normalY;
                         chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
                         chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
-                        // Добавляем немного случайности при отскоке
                         chip.vx += (Math.random() - 0.5) * 0.25; 
                     }
                 });
             }
 
-            // --- ОБНОВЛЕНИЕ СТИЛЕЙ И ПРОВЕРКА НА ВЫХОД ИЗ ПОЛЯ ---
+            // ОБНОВЛЕНИЕ СТИЛЕЙ И ПРОВЕРКА НА ВЫХОД ИЗ ПОЛЯ
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
                 endDrop(chip);
