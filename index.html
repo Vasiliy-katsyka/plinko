@@ -494,17 +494,13 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
             
-            // Определяем высоту, на которой "перехватываем" управление.
-            // Увеличили значение с 0.75 до 0.88 для более естественной анимации.
             const takeoverHeight = BOARD_HEIGHT * 0.88; 
 
-            // Если шарик опустился достаточно низко и им еще не начали управлять
             if (chip.y > takeoverHeight && !chip.isGuided) {
-                chip.isGuided = true; // Включаем режим наведения
+                chip.isGuided = true;
                 const finalSlotIndex = chip.serverResult.final_slot_index;
                 const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
                 if (targetSlot) {
-                    // Рассчитываем целевую X-координату (центр нужного слота)
                     const slotRect = targetSlot.getBoundingClientRect();
                     const boardRect = selectors.board.getBoundingClientRect();
                     chip.targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
@@ -513,9 +509,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ПРИМЕНЕНИЕ СИЛ
             if (chip.isGuided && chip.targetX !== undefined) {
-                // В режиме наведения: плавно двигаем шарик к целевой X-координате
-                chip.vx = (chip.targetX - chip.x) * 0.1; 
-                chip.vy += GRAVITY; 
+                // --- НОВАЯ УМНАЯ ЛОГИКА НАВЕДЕНИЯ ---
+                
+                // 1. Рассчитываем "силу", которая тянет шарик к цели.
+                const forceX = (chip.targetX - chip.x) * 0.01;
+                
+                // 2. Плавно изменяем текущую скорость, а не заменяем её.
+                chip.vx += forceX;
+                
+                // 3. Добавляем небольшое "трение", чтобы погасить лишнюю скорость и избежать промахов.
+                chip.vx *= 0.95; 
+                
+                // Гравитация продолжает действовать как обычно.
+                chip.vy += GRAVITY;
+
             } else {
                 // В режиме свободного падения
                 chip.vy += GRAVITY;
