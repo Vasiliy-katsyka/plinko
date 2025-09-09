@@ -483,7 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeChips.length === 0) {
             isDropping = false;
             setControlsDisabled(false);
-            // Запрашиваем актуальный баланс с сервера для окончательной синхронизации
             apiRequest('/api/user_data', 'POST', {}).then(userData => {
                 currentUser.balance = userData.balance; 
                 updateBalanceUI();
@@ -494,7 +493,9 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
             
-            const takeoverHeight = BOARD_HEIGHT * 0.88; 
+            // "Золотая середина": начинаем наведение на 80% высоты.
+            // Это дает шарику время и пространство для плавного маневра.
+            const takeoverHeight = BOARD_HEIGHT * 0.80; 
 
             if (chip.y > takeoverHeight && !chip.isGuided) {
                 chip.isGuided = true;
@@ -509,20 +510,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ПРИМЕНЕНИЕ СИЛ
             if (chip.isGuided && chip.targetX !== undefined) {
-                // --- НОВАЯ УМНАЯ ЛОГИКА НАВЕДЕНИЯ ---
-                
-                // 1. Рассчитываем "силу", которая тянет шарик к цели.
-                const forceX = (chip.targetX - chip.x) * 0.01;
-                
-                // 2. Плавно изменяем текущую скорость, а не заменяем её.
+                // --- УЛУЧШЕННАЯ ЛОГИКА НАВЕДЕНИЯ ---
+                // 1. Увеличили "силу притяжения", чтобы он реагировал быстрее.
+                const forceX = (chip.targetX - chip.x) * 0.02;
                 chip.vx += forceX;
                 
-                // 3. Добавляем небольшое "трение", чтобы погасить лишнюю скорость и избежать промахов.
-                chip.vx *= 0.95; 
+                // 2. Усилили "трение", чтобы он не пролетал мимо цели и быстрее гасил скорость.
+                chip.vx *= 0.92; 
                 
-                // Гравитация продолжает действовать как обычно.
                 chip.vy += GRAVITY;
-
             } else {
                 // В режиме свободного падения
                 chip.vy += GRAVITY;
