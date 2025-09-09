@@ -481,9 +481,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updatePhysics() {
         if (activeChips.length === 0) {
-            isDropping = false; 
+            isDropping = false;
             setControlsDisabled(false);
-            // As a final sync, fetch the true balance from the server to prevent any visual drift.
+            // Запрашиваем актуальный баланс с сервера для окончательной синхронизации
             apiRequest('/api/user_data', 'POST', {}).then(userData => {
                 currentUser.balance = userData.balance; 
                 updateBalanceUI();
@@ -493,43 +493,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
+            
+            // --- НОВАЯ ЛОГИКА: "ВЕДОМАЯ ФИЗИКА" ---
+            // Определяем высоту, на которой мы "перехватываем" управление шариком
             const takeoverHeight = BOARD_HEIGHT * 0.75; 
+
+            // Если шарик опустился достаточно низко и им еще не начали управлять
             if (chip.y > takeoverHeight && !chip.isGuided) {
-                chip.isGuided = true;
+                chip.isGuided = true; // Включаем режим наведения
                 const finalSlotIndex = chip.serverResult.final_slot_index;
                 const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
                 if (targetSlot) {
-                    const slotRect = targetSlot.getBoundingClientRect(), boardRect = selectors.board.getBoundingClientRect();
+                    // Рассчитываем целевую X-координату (центр нужного слота)
+                    const slotRect = targetSlot.getBoundingClientRect();
+                    const boardRect = selectors.board.getBoundingClientRect();
                     chip.targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
                 }
             }
+
+            // --- ПРИМЕНЕНИЕ СИЛ ---
             if (chip.isGuided && chip.targetX !== undefined) {
-                chip.vx = (chip.targetX - chip.x) * 0.1; chip.vy += GRAVITY;
+                // В режиме наведения: плавно двигаем шарик к целевой X-координате
+                chip.vx = (chip.targetX - chip.x) * 0.1; // Коэффициент 0.1 для плавности
+                chip.vy += GRAVITY; // Гравитация продолжает действовать
             } else {
+                // В режиме свободного падения (верхняя часть поля)
                 chip.vy += GRAVITY;
             }
-            chip.x += chip.vx; chip.y += chip.vy;
+            
+            // --- ОБНОВЛЕНИЕ ПОЗИЦИИ ---
+            chip.x += chip.vx;
+            chip.y += chip.vy;
+
+            // --- СТОЛКНОВЕНИЯ СО СТЕНАМИ (всегда активно) ---
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
                 chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
+
+            // --- СТОЛКНОВЕНИЯ С ПРЕПЯТСТВИЯМИ (только в режиме свободного падения) ---
             if (!chip.isGuided) {
                 pegs.forEach(peg => {
                     const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx + dy*dy);
                     if (dist < CHIP_RADIUS + PEG_RADIUS) {
                         const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
-                        chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
-                        const normalX = dx / dist, normalY = dy / dist, dot = chip.vx * normalX + chip.vy * normalY;
-                        chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING; chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
-                        chip.vx += (Math.random() - 0.5) * 0.25;
+                        chip.x += Math.cos(angle) * overlap;
+                        chip.y += Math.sin(angle) * overlap;
+                        const normalX = dx / dist, normalY = dy / dist;
+                        const dot = chip.vx * normalX + chip.vy * normalY;
+                        chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
+                        chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                        // Добавляем немного случайности при отскоке
+                        chip.vx += (Math.random() - 0.5) * 0.25; 
                     }
                 });
             }
+
+            // --- ОБНОВЛЕНИЕ СТИЛЕЙ И ПРОВЕРКА НА ВЫХОД ИЗ ПОЛЯ ---
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
-                endDrop(chip); activeChips.splice(i, 1);
+                endDrop(chip);
+                activeChips.splice(i, 1);
             }
         }
+
         requestAnimationFrame(updatePhysics);
     }
 
