@@ -135,6 +135,14 @@
                 <div id="slots-container"></div>
             </div>
             <div class="panel">
+                <div id="game-mode-selector" style="display: flex; background-color: var(--bg-color); border-radius: 12px; padding: 4px; margin-bottom: 10px; border: 1px solid var(--border-color);">
+                    <button class="mode-button active" data-mode="xs">Иксы</button>
+                    <button class="mode-button" data-mode="gifts">Подарки</button>
+                </div>
+                <style>
+                    .mode-button { flex-grow: 1; padding: 8px 5px; border: none; background: none; border-radius: 9px; color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s ease; }
+                    .mode-button.active { background: linear-gradient(45deg, #a855f7, #6d28d9); color: white; }
+                </style>
                 <div class="balance-display"><label>Баланс</label><div id="balance" class="value">0.00</div></div>
                 <div id="settings-panel">
                     <div class="collapsible-header" id="collapsible-header">
@@ -246,6 +254,12 @@ document.addEventListener('DOMContentLoaded', () => {
         medium: { rows: 12, cols: 14, multipliers: [18, 5, 2, 1.1, 0.8, 0.5, 0.3, 0.5, 0.8, 1.1, 2, 5, 18], name: "Средний" },
         high: { rows: 16, cols: 18, multipliers: [130, 25, 8, 2, 0.5, 0.2, 0.1, 0.1, 0, 0.1, 0.1, 0.2, 0.5, 2, 8, 25, 130], name: "Высокий" }
     };
+
+    let currentGameMode = 'xs';
+    
+    // --- NEW Selectors ---
+    const modeSelector = document.getElementById('game-mode-selector');
+    const modeButtons = document.querySelectorAll('.mode-button');
     
     const selectors = {
         views: document.querySelectorAll('.view'), navButtons: document.querySelectorAll('.nav-button'),
@@ -326,7 +340,41 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
         if (viewId === 'free-try-view') { initFreeTryView(); }
     }
-
+    async function updateBoardSlots() {
+        const bet = parseFloat(selectors.betAmountInput.value);
+        
+        try {
+            // Call our new backend endpoint
+            const response = await apiRequest('/api/get_board_slots', 'POST', {
+                risk: currentRisk,
+                bet: bet,
+                mode: currentGameMode
+            });
+            
+            selectors.slotsContainer.innerHTML = ''; // Clear existing slots
+            
+            response.slots.forEach(slotData => {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                
+                if (slotData.display === 'image') {
+                    // Gift Mode
+                    slot.innerHTML = `<img src="${slotData.imageUrl}" title="${slotData.name} (~${Math.round(slotData.value)} Stars)" style="height: 80%; object-fit: contain;">`;
+                    slot.style.backgroundColor = getSlotColor(slotData.value / bet); // Color based on effective multiplier
+                } else {
+                    // XS Mode
+                    const multiplier = parseFloat(slotData.display);
+                    slot.textContent = slotData.display;
+                    slot.style.backgroundColor = getSlotColor(multiplier);
+                }
+                selectors.slotsContainer.appendChild(slot);
+            });
+    
+        } catch (error) {
+            console.error("Failed to update board slots:", error);
+            tg.showAlert("Не удалось загрузить оформление для слотов.");
+        }
+    }
     function updateHeaderValues() {
         selectors.headerBetValue.innerHTML = `${parseFloat(selectors.betAmountInput.value).toFixed(2)} ${STAR_ICON_HTML}`;
         selectors.headerRiskValue.textContent = riskLevelConfigs[currentRisk].name;
@@ -432,20 +480,54 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupBoard(risk) {
-        if (isDropping) return; currentRisk = risk; updateHeaderValues();
-        BOARD_WIDTH = selectors.board.clientWidth; if (BOARD_WIDTH === 0) { setTimeout(() => setupBoard(risk), 50); return; }
-        BOARD_HEIGHT = selectors.board.clientHeight; PEG_RADIUS = BOARD_WIDTH / 150;
+        // Stop if a chip is currently falling
+        if (isDropping) return;
+
+        // Update the current risk level state and the UI header
+        currentRisk = risk;
+        updateHeaderValues();
+
+        // Calculate board dimensions. This is crucial for the physics engine.
+        // If the board isn't visible yet, wait and retry.
+        BOARD_WIDTH = selectors.board.clientWidth;
+        if (BOARD_WIDTH === 0) {
+            setTimeout(() => setupBoard(risk), 50);
+            return;
+        }
+        BOARD_HEIGHT = selectors.board.clientHeight;
+        PEG_RADIUS = BOARD_WIDTH / 150;
         CHIP_RADIUS = (risk === 'high') ? BOARD_WIDTH / 55 : BOARD_WIDTH / 45;
-        const config = riskLevelConfigs[risk]; pegs = []; selectors.board.innerHTML = ''; selectors.slotsContainer.innerHTML = '';
-        const hSpacing = BOARD_WIDTH / config.cols, vSpacing = BOARD_HEIGHT / (config.rows + 1);
+
+        // Reset the pegs array and clear the board of any existing pegs
+        pegs = [];
+        selectors.board.innerHTML = '';
+
+        // Get the configuration (rows, columns, multipliers) for the selected risk level
+        const config = riskLevelConfigs[risk];
+        const hSpacing = BOARD_WIDTH / config.cols;
+        const vSpacing = BOARD_HEIGHT / (config.rows + 1);
+
+        // Loop to create and place all the pegs on the board
         for (let r = 0; r < config.rows; r++) {
-            const numPegs = r % 2 === 0 ? config.cols - 1 : config.cols; const xOffset = r % 2 === 0 ? hSpacing : hSpacing / 2;
+            const numPegs = r % 2 === 0 ? config.cols - 1 : config.cols;
+            const xOffset = r % 2 === 0 ? hSpacing : hSpacing / 2;
             for (let c = 0; c < numPegs; c++) {
-                const x = xOffset + c * hSpacing, y = vSpacing + r * vSpacing; pegs.push({ x, y });
-                const pegEl = document.createElement('div'); pegEl.className = 'peg'; pegEl.style.cssText = `width:${PEG_RADIUS * 2}px;height:${PEG_RADIUS * 2}px;left:${x}px;top:${y}px;`; selectors.board.appendChild(pegEl);
+                const x = xOffset + c * hSpacing;
+                const y = vSpacing + r * vSpacing;
+                pegs.push({ x, y });
+                const pegEl = document.createElement('div');
+                pegEl.className = 'peg';
+                pegEl.style.cssText = `width:${PEG_RADIUS * 2}px;height:${PEG_RADIUS * 2}px;left:${x}px;top:${y}px;`;
+                selectors.board.appendChild(pegEl);
             }
         }
-        config.multipliers.forEach(m => { const slot = document.createElement('div'); slot.className = 'slot'; slot.dataset.multiplier = m; slot.textContent = `${m}x`; slot.style.backgroundColor = getSlotColor(m); selectors.slotsContainer.appendChild(slot); });
+
+        // *** MODIFICATION HERE ***
+        // The old loop that manually created slots based on multipliers is removed.
+        // Instead, we now call the new function which handles both modes.
+        updateBoardSlots();
+
+        // Update the visual style of the risk selector buttons
         selectors.riskButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.risk === risk));
     }
 
@@ -483,6 +565,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeChips.length === 0) {
             isDropping = false;
             setControlsDisabled(false);
+            if (currentGameMode === 'gifts') {
+                updateBoardSlots();
+            }
             // Запрашиваем актуальный баланс с сервера для окончательной синхронизации
             apiRequest('/api/user_data', 'POST', {}).then(userData => {
                 currentUser.balance = userData.balance; 
@@ -595,11 +680,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleBetChange() {
+        // Get the current value from the input field as a number
         let b = parseFloat(selectors.betAmountInput.value);
-        if (isNaN(b) || b < 0.5) b = 0.5;
-        if (b > currentUser.balance) b = currentUser.balance;
+        
+        // Validate the bet amount: ensure it's a number and not below the minimum
+        if (isNaN(b) || b < 0.5) {
+            b = 0.5;
+        }
+
+        // Validate against the user's balance: ensure they can't bet more than they have
+        if (b > currentUser.balance) {
+            b = currentUser.balance;
+        }
+
+        // Format the final, validated value back into the input field (e.g., 5 -> 5.00)
         selectors.betAmountInput.value = b.toFixed(2);
+        
+        // Update the header display to show the new bet amount
         updateHeaderValues();
+
+        // *** MODIFICATION HERE ***
+        // Call this function to refresh the slots. This is crucial for "Gifts" mode,
+        // as the gifts shown are dependent on the bet value.
+        updateBoardSlots();
     }
 
     function handleStepper(event) {
@@ -705,6 +808,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const link = document.createElement('a');
         link.href = tonUrl; link.target = '_blank';
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    });
+    modeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            if (isDropping) return; // Don't allow switching during a drop
+    
+            modeButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            currentGameMode = button.dataset.mode;
+            
+            // Refresh the slots with the new mode
+            updateBoardSlots();
+        });
     });
 
     initializeApp();
