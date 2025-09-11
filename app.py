@@ -684,74 +684,78 @@ def get_board_slots():
 
     elif mode == 'gifts':
         try:
-            available_gifts = build_master_gift_list()
-            if not available_gifts:
+            # --- 1. PREPARE DATA ---
+            full_gift_list = build_master_gift_list()
+            if not full_gift_list:
                 return jsonify({"error": "Could not load gift data."}), 500
+            
+            # Create a list of target values based on bet and multipliers
+            target_slots = [{"target_value": bet_amount * m, "multiplier": m, "assigned_gift": None} for m in multipliers]
+            # Sort slots by target value to make assignment more logical
+            target_slots.sort(key=lambda x: x['target_value'])
 
-            # --- NEW: Filter gifts based on a realistic winnable range ---
-            min_multiplier = min(m for m in multipliers if m > 0) # Smallest non-zero multiplier
+            # --- 2. DEFINE ELIGIBLE GIFTS (as before) ---
+            min_multiplier = min(m for m in multipliers if m > 0)
             max_multiplier = max(multipliers)
-            
-            # Define a flexible range around the possible outcomes
-            min_winnable_value = bet_amount * min_multiplier * 0.8 # 80% of the min win
-            max_winnable_value = bet_amount * max_multiplier * 1.2 # 120% of the max win
+            min_winnable_value = bet_amount * min_multiplier * 0.8
+            max_winnable_value = bet_amount * max_multiplier * 1.2
 
-            eligible_gifts = [
-                g for g in available_gifts 
-                if min_winnable_value <= g['value'] <= max_winnable_value
-            ]
+            eligible_gifts = [g for g in full_gift_list if min_winnable_value <= g['value'] <= max_winnable_value]
             
-            # --- Fallback Logic ---
-            # If we don't find enough unique gifts in the ideal range,
-            # we use what we found and fill the rest with the closest gifts from the main list.
-            if len(eligible_gifts) < len(multipliers):
-                logger.warning(f"Not enough eligible gifts for bet {bet_amount}. Found {len(eligible_gifts)}, need {len(multipliers)}. Using fallback.")
-                # To prevent errors, we'll use the full list but prioritize eligible ones
-                source_gift_list = available_gifts
-            else:
-                source_gift_list = eligible_gifts
-            
-            # Sort the source list by value to make selection predictable
-            source_gift_list.sort(key=lambda g: g['value'])
+            # Create mutable copies to work with
+            remaining_eligible = list(eligible_gifts)
+            remaining_all = list(full_gift_list)
 
-            chosen_slots = []
-            used_gift_indices = set()
+            # --- 3. ROBUST ASSIGNMENT ALGORITHM ---
 
-            for m in multipliers:
-                target_value = bet_amount * m
+            # Pass 1: Assign the BEST POSSIBLE matches from the eligible pool
+            for slot in target_slots:
+                if not remaining_eligible: break # Stop if we run out of eligible gifts
+
+                # Find the eligible gift with the smallest price difference
+                best_eligible_gift = min(remaining_eligible, key=lambda g: abs(g['value'] - slot['target_value']))
                 
-                best_gift = None
-                best_diff = float('inf')
-                best_index = -1
+                slot['assigned_gift'] = best_eligible_gift
+                remaining_eligible.remove(best_eligible_gift) # Mark as used
+                # Also remove from the "all gifts" list to prevent duplicates in the next pass
+                if best_eligible_gift in remaining_all:
+                     remaining_all.remove(best_eligible_gift)
 
-                # Find the best available gift from our source list
-                for i, gift in enumerate(source_gift_list):
-                    if i in used_gift_indices:
-                        continue # Skip gifts that are already on the board
+            # Pass 2: Fill any remaining empty slots from the ENTIRE gift pool
+            for slot in target_slots:
+                if slot['assigned_gift'] is None: # If this slot is still empty
+                    if not remaining_all: # Should be impossible if we have enough total gifts
+                        logger.error("Ran out of all gifts to assign.")
+                        break
+
+                    # Find the best available gift from what's left of the full list
+                    best_remaining_gift = min(remaining_all, key=lambda g: abs(g['value'] - slot['target_value']))
                     
-                    diff = abs(gift['value'] - target_value)
-                    if diff < best_diff:
-                        best_diff = diff
-                        best_gift = gift
-                        best_index = i
-                
-                if best_gift:
-                    chosen_slots.append({
-                        "id": best_gift["id"], # Send ID for inventory tracking
-                        "name": best_gift["name"],
-                        "value": best_gift["value"],
-                        "imageUrl": best_gift["imageUrl"],
-                        "multiplier": m # Also send the original multiplier for context
-                    })
-                    used_gift_indices.add(best_index)
-                else:
-                    # This should rarely happen, but as a safeguard:
-                    chosen_slots.append({"name": "Error", "value": 0, "imageUrl": ""})
+                    slot['assigned_gift'] = best_remaining_gift
+                    remaining_all.remove(best_remaining_gift) # Mark as used
 
-            return jsonify({"slots": chosen_slots, "type": "gifts"})
+            # --- 4. FORMAT THE FINAL RESPONSE ---
+            # Unsort the slots back to their original multiplier order
+            final_slots_data = []
+            for m in multipliers:
+                for slot in target_slots:
+                    if slot['multiplier'] == m and slot['assigned_gift']:
+                        gift = slot['assigned_gift']
+                        final_slots_data.append({
+                            "id": gift["id"],
+                            "name": gift["name"],
+                            "value": gift["value"],
+                            "imageUrl": gift["imageUrl"],
+                            "multiplier": m
+                        })
+                        # Remove the found slot to handle duplicate multipliers correctly
+                        target_slots.remove(slot)
+                        break
+            
+            return jsonify({"slots": final_slots_data, "type": "gifts"})
 
         except Exception as e:
-            logger.error(f"Error generating gift board: {e}")
+            logger.error(f"Error generating gift board: {e}", exc_info=True)
             return jsonify({"error": "Internal server error while generating gifts."}), 500
 
     return jsonify({"error": "Invalid mode"}), 400
