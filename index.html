@@ -150,7 +150,7 @@
                         <svg class="toggle-icon" id="toggle-icon" width="24" height="24" viewBox="0 0 24 24"><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
                     <div class="collapsible-content" id="collapsible-content">
-                        <div class="stepper-input-group"><label>Ставка</label><button class="stepper-button" data-action="minus" data-target="bet-amount">-</button><input type="number" id="bet-amount" value="2.5" min="0.5" step="0.5"><button class="stepper-button" data-action="plus" data-target="bet-amount">+</button></div>
+                        <div class="stepper-input-group"><label>Ставка</label><button class="stepper-button" data-action="minus" data-target="bet-amount">-</button><input type="number" id="bet-amount" value="15" min="15" step="1"><button class="stepper-button" data-action="plus" data-target="bet-amount">+</button></div>
                         <div class="stepper-input-group"><label>Авто</label><button class="stepper-button" data-action="minus" data-target="auto-drop-count">-</button><input type="number" id="auto-drop-count" value="10" min="1" max="50"><button class="stepper-button" data-action="plus" data-target="auto-drop-count">+</button><button id="auto-drop-button" class="main-button">Старт</button></div>
                         <div class="risk-selector"><button class="risk-button" data-risk="low">Низкий</button><button class="risk-button active" data-risk="medium">Средний</button><button class="risk-button" data-risk="high">Высокий</button></div>
                     </div>
@@ -482,26 +482,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const bet = parseFloat(selectors.betAmountInput.value);
         const totalCost = totalDrops * bet;
 
-        if (isNaN(totalDrops) || totalDrops < 1) { tg.showAlert('Пожалуйста, введите корректное количество бросков.'); return; }
-        if (totalCost > currentUser.balance) { tg.showAlert('Недостаточно средств для указанного количества авто-бросков.'); return; }
+        if (isNaN(totalDrops) || totalDrops < 1) {
+            tg.showAlert('Пожалуйста, введите корректное количество бросков.');
+            return;
+        }
+        if (totalCost > currentUser.balance) {
+            tg.showAlert('Недостаточно средств для указанного количества авто-бросков.');
+            return;
+        }
         
         setControlsDisabled(true);
 
-        // 1. Visually deduct the total cost immediately
+        // Visually deduct the total cost immediately for a responsive feel.
         currentUser.balance -= totalCost;
         updateBalanceUI();
 
+        // --- NEW LOGIC ---
+        // Prepare the detailed payload for the batch API call.
+        const payload = {
+            bet: bet,
+            risk: currentRisk,
+            count: totalDrops,
+            mode: currentGameMode // Crucial: Send the current game mode ('xs' or 'gifts')
+        };
+
+        // If in 'gifts' mode, we must also send the current state of the board.
+        // The backend will use this context to determine which gifts were won.
+        if (currentGameMode === 'gifts') {
+            payload.board_gifts = giftSlotsCache;
+        }
+        // --- END NEW LOGIC ---
+
         try {
-            const batchResult = await apiRequest('/api/plinko_drop_batch', 'POST', { bet: bet, risk: currentRisk, count: totalDrops });
+            // Send the new, more detailed payload to the backend.
+            const batchResult = await apiRequest('/api/plinko_drop_batch', 'POST', payload);
             
-            // 2. Animate chips. The winnings will be added back in endDrop() for each chip.
+            // The backend's response will contain a `results` array. Each item
+            // in the array will have the correct structure, whether it's a star win or a gift win.
             batchResult.results.forEach((result, index) => {
-                setTimeout(() => { animateSingleChip(result); }, index * 50);
+                // Animate each chip with a small delay.
+                setTimeout(() => {
+                    // The animateSingleChip and endDrop functions will handle the
+                    // result of each individual drop correctly.
+                    animateSingleChip(result);
+                }, index * 100); // Stagger the drops slightly
             });
 
         } catch (error) {
             console.error("Error during batch drop:", error);
-            // If API fails, revert the balance change and re-enable controls
+            // If the API call fails for any reason, revert the balance change.
             currentUser.balance += totalCost;
             updateBalanceUI();
             setControlsDisabled(false);
@@ -807,30 +836,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleBetChange() {
-        // Get the current value from the input field as a number
         let b = parseFloat(selectors.betAmountInput.value);
         
-        // Validate the bet amount: ensure it's a number and not below the minimum
-        if (isNaN(b) || b < 0.5) {
-            b = 0.5;
+        // CHANGE THIS LINE:
+        if (isNaN(b) || b < 15) { // Was 0.5, now 15
+            b = 15;
         }
-
-        // Validate against the user's balance: ensure they can't bet more than they have
+    
         if (b > currentUser.balance) {
             b = currentUser.balance;
         }
-
-        // Format the final, validated value back into the input field (e.g., 5 -> 5.00)
+    
         selectors.betAmountInput.value = b.toFixed(2);
-        
-        // Update the header display to show the new bet amount
         updateHeaderValues();
-
-        // *** MODIFICATION HERE ***
-        // Call this function to refresh the slots. This is crucial for "Gifts" mode,
-        // as the gifts shown are dependent on the bet value.
-        updateBoardSlots();
+        updateBoardSlots(); // This correctly triggers the dynamic gift refresh
     }
+
 
     function handleStepper(event) {
         const btn = event.currentTarget, action = btn.dataset.action, targetId = btn.dataset.target, input = document.getElementById(targetId);
@@ -838,9 +859,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetId === 'bet-amount') {
             let val = parseFloat(input.value) || 0;
             let step = 1;
-            if (val >= 10) step = 5; if (val >= 50) step = 10;
+            if (val >= 50) step = 5; if (val >= 100) step = 10;
             if (action === 'plus') val += step; else if (action === 'minus') val -= step;
-            val = Math.max(parseFloat(input.min), val);
+            
+            // CHANGE THIS LINE:
+            val = Math.max(15, val); // Was parseFloat(input.min), now hardcoded to 15
+            
             input.value = val.toFixed(2);
             handleBetChange();
         } else {
