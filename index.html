@@ -184,6 +184,13 @@
                     <button id="topup-stars-btn" class="main-button" style="background: var(--button-secondary-bg);">Пополнить через Stars</button>
                     <button id="topup-gifts-btn" class="main-button" style="background: var(--surface-color-2);">Пополнить подарками</button>
                 </div>
+                <div id="inventory-section" style="margin-top: 25px;">
+                <h3 style="text-align:center; color:var(--text-muted);">Инвентарь Подарков</h3>
+                <div id="inventory-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 15px; max-height: 400px; overflow-y: auto; padding: 5px;">
+                    <!-- Inventory items will be injected here by JavaScript -->
+                    <p id="inventory-placeholder" style="grid-column: 1 / -1; text-align: center; color: var(--text-muted);">Инвентарь пуст.</p>
+                </div>
+            </div>
             </div>
         </div>
     </div>
@@ -242,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDropping = false;
     let autoDropInterval = null;
     let activeChips = [];
+    let giftSlotsCache = [];
     let chipIdCounter = 0;
     let pegs = [];
     let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
@@ -281,7 +289,86 @@ document.addEventListener('DOMContentLoaded', () => {
         closeGiftsModalBtn: document.getElementById('close-gifts-modal-btn'), timerElement: document.getElementById('timer'),
         claimFreeDropBtn: document.getElementById('claim-free-drop-btn'),
     };
+    const inventoryContainer = document.getElementById('inventory-container');
+    const inventoryPlaceholder = document.getElementById('inventory-placeholder');
     
+    async function loadInventory() {
+        inventoryContainer.innerHTML = ''; // Clear it
+        inventoryPlaceholder.style.display = 'block';
+        inventoryPlaceholder.textContent = 'Загрузка...';
+    
+        try {
+            const data = await apiRequest('/api/get_inventory');
+            if (data.inventory && data.inventory.length > 0) {
+                inventoryPlaceholder.style.display = 'none';
+                data.inventory.forEach(item => {
+                    const itemEl = document.createElement('div');
+                    itemEl.className = 'inventory-item';
+                    itemEl.style.cssText = `
+                        background-color: var(--surface-color-2);
+                        border: 1px solid var(--border-color);
+                        border-radius: 12px;
+                        padding: 8px;
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: space-between;
+                    `;
+                    itemEl.innerHTML = `
+                        <img src="${item.imageUrl}" style="width: 60px; height: 60px; object-fit: contain;">
+                        <span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">${item.name}</span>
+                        <button class="convert-btn main-button" data-id="${item.inventory_id}" data-value="${item.value}" style="width: 100%; font-size: 0.8rem; padding: 6px; margin-top: 8px; height: auto;">
+                            ${Math.round(item.value)} ${STAR_ICON_HTML}
+                        </button>
+                    `;
+                    inventoryContainer.appendChild(itemEl);
+                });
+    
+                // Add event listeners to the new buttons
+                document.querySelectorAll('.convert-btn').forEach(btn => {
+                    btn.addEventListener('click', handleConvertGift);
+                });
+            } else {
+                inventoryPlaceholder.textContent = 'Инвентарь пуст.';
+            }
+        } catch (e) {
+            console.error("Failed to load inventory:", e);
+            inventoryPlaceholder.textContent = 'Ошибка загрузки.';
+        }
+    }
+    
+    async function handleConvertGift(event) {
+        const button = event.currentTarget;
+        const inventoryId = button.dataset.id;
+        button.disabled = true;
+        button.textContent = '...';
+    
+        try {
+            const response = await apiRequest('/api/convert_gift', 'POST', { inventory_id: inventoryId });
+            if (response.status === 'success') {
+                tg.HapticFeedback.notificationOccurred('success');
+                // Update balance and remove the item visually
+                currentUser.balance = response.new_balance;
+                updateBalanceUI();
+                button.closest('.inventory-item').remove();
+    
+                // Check if inventory is now empty
+                if (inventoryContainer.children.length === 0) {
+                    inventoryPlaceholder.style.display = 'block';
+                    inventoryPlaceholder.textContent = 'Инвентарь пуст.';
+                }
+            } else {
+                tg.showAlert(response.error || 'Не удалось конвертировать подарок.');
+                button.disabled = false;
+                button.innerHTML = `${Math.round(button.dataset.value)} ${STAR_ICON_HTML}`; // Restore button text
+            }
+        } catch (e) {
+            button.disabled = false;
+            button.innerHTML = `${Math.round(button.dataset.value)} ${STAR_ICON_HTML}`;
+        }
+    }
+
     async function apiRequest(endpoint, method = 'POST', body = {}) {
         const config = { method, headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData } };
         if (method.toUpperCase() !== 'GET') { config.body = JSON.stringify(body); }
@@ -339,6 +426,9 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.views.forEach(v => v.classList.toggle('active', v.id === viewId));
         selectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
         if (viewId === 'free-try-view') { initFreeTryView(); }
+        if (viewId === 'profile-view') {
+            loadInventory();
+        }
     }
     async function updateBoardSlots() {
         const bet = parseFloat(selectors.betAmountInput.value);
@@ -350,6 +440,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 bet: bet,
                 mode: currentGameMode
             });
+
+            if (currentGameMode === 'gifts') {
+                giftSlotsCache = response.slots; // Store the gift data
+            } else {
+                giftSlotsCache = []; // Clear the cache if not in gifts mode
+            }
             
             selectors.slotsContainer.innerHTML = ''; // Clear existing slots
             
@@ -655,9 +751,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function endDrop(chip) {
         chip.element.remove();
         const result = chip.serverResult;
-        
+        let wonGift = null;
+        if (currentGameMode === 'gifts' && giftSlotsCache.length > result.final_slot_index) {
+            wonGift = giftSlotsCache[result.final_slot_index];
+        }
         // 3. Add this chip's specific winnings to the local balance and update the UI.
-        currentUser.balance += result.winnings;
+        currentUser.balance = result.new_balance; 
         updateBalanceUI();
 
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
