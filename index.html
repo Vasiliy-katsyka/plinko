@@ -637,23 +637,37 @@ document.addEventListener('DOMContentLoaded', () => {
         
         setControlsDisabled(true);
         
-        // 1. Visually deduct the bet from the local balance object immediately
+        // Visually deduct the bet immediately for better UX
         currentUser.balance -= bet;
         updateBalanceUI();
-
+    
+        // --- NEW LOGIC ---
+        // Prepare the payload for the API call
+        const payload = {
+            bet: bet,
+            risk: currentRisk,
+            mode: currentGameMode // This is key: 'xs' or 'gifts'
+        };
+    
+        // If we're in gifts mode, also send the current board layout
+        if (currentGameMode === 'gifts') {
+            payload.board_gifts = giftSlotsCache; // giftSlotsCache is the array of gift objects
+        }
+        // --- END NEW LOGIC ---
+    
         try {
-            const result = await apiRequest('/api/plinko_drop', 'POST', { bet: bet, risk: currentRisk });
+            // The backend now handles everything based on the mode
+            const result = await apiRequest('/api/plinko_drop', 'POST', payload);
             
-            // 2. Animate the chip. The winnings will be added back in endDrop().
-            // We NO LONGER update the balance with result.new_balance here.
+            // Pass the FULL result from the server to the animation function
             animateSingleChip(result);
-
+    
         } catch(error) {
             console.error("Error during single drop:", error);
-            // If the API call fails, give the bet back to the user and re-enable controls
+            // If the API call fails, give the bet back to the user
             currentUser.balance += bet;
             updateBalanceUI();
-            setControlsDisabled(false);
+            setControlsDisabled(false); // Re-enable controls
         }
     }
 
@@ -750,21 +764,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- MODIFIED FUNCTION ---
     function endDrop(chip) {
         chip.element.remove();
-        const result = chip.serverResult;
-        let wonGift = null;
-        if (currentGameMode === 'gifts' && giftSlotsCache.length > result.final_slot_index) {
-            wonGift = giftSlotsCache[result.final_slot_index];
-        }
-        // 3. Add this chip's specific winnings to the local balance and update the UI.
-        currentUser.balance = result.new_balance; 
+        const result = chip.serverResult; // This now contains the full response from the new plinko_drop
+        
+        // --- NEW LOGIC ---
+        // The server is now the single source of truth for the balance.
+        // We simply update our local state to match what the server says.
+        currentUser.balance = result.new_balance;
         updateBalanceUI();
-
+    
+        // Check if a gift was won
+        if (result.won_item) {
+            tg.showAlert(`Вы выиграли подарок: ${result.won_item.name}!`);
+            // We can optionally refresh the inventory in the background
+            if (document.getElementById('profile-view').classList.contains('active')) {
+                loadInventory();
+            }
+        }
+        // --- END NEW LOGIC ---
+    
+        // --- FIX GLOW EFFECT ---
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
         if (targetSlot) {
+            // This highlighting logic works for both gifts and xs slots.
             targetSlot.classList.add('highlight');
             setTimeout(() => targetSlot.classList.remove('highlight'), 600);
         }
-        if (result.multiplier >= 10) { tg.HapticFeedback.notificationOccurred('success'); }
+        
+        if (result.multiplier >= 10 || (result.won_item && result.won_item.value > 10 * parseFloat(selectors.betAmountInput.value))) {
+            tg.HapticFeedback.notificationOccurred('success');
+        }
     }
     
     function setControlsDisabled(disabled) {
