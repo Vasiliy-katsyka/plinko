@@ -21,11 +21,13 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 from pytoniq import LiteBalancer
+from portalsmp import giftsFloors
 
 # --- Configuration ---
 load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
+PORTALS_AUTH_TOKEN = os.environ.get("PORTALS_AUTH_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://plinko-4vm7.onrender.com")
 DEPOSIT_WALLET_ADDRESS = os.environ.get("DEPOSIT_WALLET_ADDRESS")
@@ -49,6 +51,114 @@ PLINKO_CONFIGS = {
         'multipliers': [130, 25, 8, 2, 0.5, 0.2, 0.1, 0.1, 0, 0.1, 0.1, 0.2, 0.5, 2, 8, 25, 130]
     }
 }
+
+REGULAR_GIFTS = {
+    "5983471780763796287": "Santa Hat",
+    "5936085638515261992": "Signet Ring",
+    "5933671725160989227": "Precious Peach",
+    "5936013938331222567": "Plush Pepe",
+    "5913442287462908725": "Spiced Wine",
+    "5915502858152706668": "Jelly Bunny",
+    "5915521180483191380": "Durov's Cap",
+    "5913517067138499193": "Perfume Bottle",
+    "5882125812596999035": "Eternal Rose",
+    "5882252952218894938": "Berry Box",
+    "5857140566201991735": "Vintage Cigar",
+    "5846226946928673709": "Magic Potion",
+    "5845776576658015084": "Kissed Frog",
+    "5825801628657124140": "Hex Pot",
+    "5825480571261813595": "Evil Eye",
+    "5841689550203650524": "Sharp Tongue",
+    "5841391256135008713": "Trapped Heart",
+    "5839038009193792264": "Skull Flower",
+    "5837059369300132790": "Scared Cat",
+    "5821261908354794038": "Spy Agaric",
+    "5783075783622787539": "Homemade Cake",
+    "5933531623327795414": "Genie Lamp",
+    "6028426950047957932": "Lunar Snake",
+    "6003643167683903930": "Party Sparkler",
+    "5933590374185435592": "Jester Hat",
+    "5821384757304362229": "Witch Hat",
+    "5915733223018594841": "Hanging Star",
+    "5915550639663874519": "Love Candle",
+    "6001538689543439169": "Cookie Heart",
+    "5782988952268964995": "Desk Calendar",
+    "6001473264306619020": "Jingle Bells",
+    "5980789805615678057": "Snow Mittens",
+    "5836780359634649414": "Voodoo Doll",
+    "5841632504448025405": "Mad Pumpkin",
+    "5825895989088617224": "Hypno Lollipop",
+    "5782984811920491178": "B-Day Candle",
+    "5935936766358847989": "Bunny Muffin",
+    "5933629604416717361": "Astral Shard",
+    "5837063436634161765": "Flying Broom",
+    "5841336413697606412": "Crystal Ball",
+    "5821205665758053411": "Eternal Candle",
+    "5936043693864651359": "Swiss Watch",
+    "5983484377902875708": "Ginger Cookie",
+    "5879737836550226478": "Mini Oscar",
+    "5170594532177215681": "Lol Pop",
+    "5843762284240831056": "Ion Gem",
+    "5936017773737018241": "Star Notepad",
+    "5868659926187901653": "Loot Bag",
+    "5868348541058942091": "Love Potion",
+    "5868220813026526561": "Toy Bear",
+    "5868503709637411929": "Diamond Ring",
+    "5167939598143193218": "Sakura Flower",
+    "5981026247860290310": "Sleigh Bell",
+    "5897593557492957738": "Top Hat",
+    "5856973938650776169": "Record Player",
+    "5983259145522906006": "Winter Wreath",
+    "5981132629905245483": "Snow Globe",
+    "5846192273657692751": "Electric Skull",
+    "6023752243218481939": "Tama Gadget",
+    "6003373314888696650": "Candy Cane",
+    "5933793770951673155": "Neko Helmet",
+    "6005659564635063386": "Jack-in-the-Box",
+    "5773668482394620318": "Easter Egg",
+    "5870661333703197240": "Bonded Ring",
+    "6023917088358269866": "Pet Snake",
+    "6023679164349940429": "Snake Box",
+    "6003767644426076664": "Xmas Stocking",
+    "6028283532500009446": "Big Year",
+    "6003735372041814769": "Holiday Drink",
+    "5859442703032386168": "Gem Signet",
+    "5897581235231785485": "Light Sword",
+    "5870784783948186838": "Restless Jar",
+    "5870720080265871962": "Nail Bracelet",
+    "5895328365971244193": "Heroic Helmet",
+    "5895544372761461960": "Bow Tie",
+    "5868455043362980631": "Heart Locket",
+    "5871002671934079382": "Lush Bouquet",
+    "5933543975653737112": "Whip Cupcake",
+    "5870862540036113469": "Joyful Bundle",
+    "5868561433997870501": "Cupid Charm",
+    "5868595669182186720": "Valentine Box",
+    "6014591077976114307": "Snoop Dogg",
+    "6012607142387778152": "Swag Bag",
+    "6012435906336654262": "Snoop Cigar",
+    "6014675319464657779": "Low Rider",
+    "6014697240977737490": "Westside Sign",
+    "6042113507581755979": "Stellar Rocket",
+    "6005880141270483700": "Jolly Chimp",
+    "5998981470310368313": "Moon Pendant",
+    "5933937398953018107": "Ionic Dryer",
+}
+
+EMOJI_GIFTS = {
+    "Heart": {"id": "5170145012310081615", "value": 15, "imageUrl": "https://github.com/Vasiliy-katsyka/gifthunter/blob/main/gifts_emoji_by_gifts_changes_bot_AgADYEwAAiHMUUk.png?raw=true"},
+    "Bear": {"id": "5170233102089322756", "value": 15, "imageUrl": "https://github.com/Vasiliy-katsyka/gifthunter/blob/main/gifts_emoji_by_gifts_changes_bot_AgADomAAAvRzSEk.png?raw=true"},
+    "Rose": {"id": "5168103777563050263", "value": 25, "imageUrl": "https://github.com/Vasiliy-katsyka/gifthunter/blob/main/gifts_emoji_by_gifts_changes_bot_AgADslsAAqCxSUk.png?raw=true"},
+    "Rocket": {"id": "5170564780938756245", "value": 50, "imageUrl": "https://github.com/Vasiliy-katsyka/gifthunter/blob/main/gifts_emoji_by_gifts_changes_bot_AgAD9lAAAsBFUUk.png?raw=true"},
+    "Bottle": {"id": "6028601630662853006", "value": 50, "imageUrl": "https://github.com/Vasiliy-katsyka/gifthunter/blob/main/gifts_emoji_by_gifts_changes_bot_AgADA2cAAm0PqUs.png?raw=true"},
+    "Ring": {"id": "5170690322832818290", "value": 100, "imageUrl": "https://github.com/Vasiliy-katsyka/gifthunter/blob/main/IMG_20250901_162059_844.png?raw=true"}
+}
+
+gift_floor_cache = {
+    "data": {},
+    "last_updated": 0
+}
+CACHE_DURATION_SECONDS = 900  # 15 minutes
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -352,6 +462,124 @@ def plinko_drop():
         })
     finally:
         db.close()
+
+def get_gift_floor_prices():
+    """
+    Fetches gift floor prices from the Portals API, using a cache.
+    Returns a dictionary of gift names to their floor price in Stars.
+    """
+    now = time.time()
+    if now - gift_floor_cache["last_updated"] > CACHE_DURATION_SECONDS:
+        logger.info("Cache expired. Fetching new gift floor prices from Portals API...")
+        try:
+            if not PORTALS_AUTH_TOKEN:
+                raise ValueError("PORTALS_AUTH_TOKEN is not set.")
+                
+            # The API returns floors in TON (as strings)
+            all_floors_ton = giftsFloors(authData=PORTALS_AUTH_TOKEN)
+            
+            if not all_floors_ton:
+                 raise ConnectionError("Failed to retrieve data from Portals API.")
+
+            # Convert to Stars and update cache
+            floors_in_stars = {
+                name: float(price) * TON_TO_STARS_RATE
+                for name, price in all_floors_ton.items()
+            }
+            gift_floor_cache["data"] = floors_in_stars
+            gift_floor_cache["last_updated"] = now
+            logger.info("Successfully updated gift floor price cache.")
+        except Exception as e:
+            logger.error(f"Error updating gift floor cache: {e}")
+            # Return the old data if the update fails to avoid breaking the app
+            return gift_floor_cache["data"]
+            
+    return gift_floor_cache["data"]
+
+def build_master_gift_list():
+    """
+    Combines regular gifts (with dynamic floor prices) and emoji gifts (with fixed values)
+    into a single list of gift objects.
+    """
+    master_list = []
+    floor_prices_stars = get_gift_floor_prices()
+
+    # Add regular gifts
+    for gift_id, gift_name in REGULAR_GIFTS.items():
+        name_key = gift_name.lower()
+        if name_key in floor_prices_stars:
+            master_list.append({
+                "id": gift_id,
+                "name": gift_name,
+                "value": floor_prices_stars[name_key],
+                "imageUrl": f"https://cdn.changes.tg/gifts/originals/{gift_id}/Original.png"
+            })
+
+    # Add emoji gifts
+    for gift_name, gift_data in EMOJI_GIFTS.items():
+        master_list.append({
+            "id": gift_data["id"],
+            "name": gift_name,
+            "value": gift_data["value"],
+            "imageUrl": gift_data["imageUrl"]
+        })
+    
+    return master_list
+
+@app.route('/api/get_board_slots', methods=['POST'])
+def get_board_slots():
+    auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
+    if not auth_data: return jsonify({"error": "Authentication failed"}), 401
+    
+    data = flask_request.get_json()
+    risk = data.get('risk', 'medium')
+    bet_amount = float(data.get('bet', 1.0))
+    mode = data.get('mode', 'xs') # 'xs' or 'gifts'
+
+    if risk not in PLINKO_CONFIGS: return jsonify({"error": "Invalid risk level"}), 400
+    
+    config = PLINKO_CONFIGS[risk]
+    multipliers = config['multipliers']
+
+    if mode == 'xs':
+        # For 'xs' mode, just return the multipliers
+        slots = [{"display": f"{m}x"} for m in multipliers]
+        return jsonify({"slots": slots})
+
+    elif mode == 'gifts':
+        try:
+            # For 'gifts' mode, find the best matching gift for each slot
+            available_gifts = build_master_gift_list()
+            if not available_gifts:
+                return jsonify({"error": "Could not load gift data."}), 500
+
+            chosen_slots = []
+            for m in multipliers:
+                target_value = bet_amount * m
+                
+                # Find the best available gift
+                if not available_gifts: # In case we run out of unique gifts
+                    break
+
+                # Find the gift with the smallest price difference
+                best_gift = min(available_gifts, key=lambda g: abs(g['value'] - target_value))
+                
+                chosen_slots.append({
+                    "display": "image",
+                    "name": best_gift["name"],
+                    "value": best_gift["value"],
+                    "imageUrl": best_gift["imageUrl"]
+                })
+                
+                # Remove the chosen gift to ensure uniqueness on the board
+                available_gifts.remove(best_gift)
+            
+            return jsonify({"slots": chosen_slots})
+        except Exception as e:
+            logger.error(f"Error generating gift board: {e}")
+            return jsonify({"error": "Internal server error while generating gifts."}), 500
+
+    return jsonify({"error": "Invalid mode"}), 400
 
 @app.route('/api/plinko_drop_batch', methods=['POST'])
 def plinko_drop_batch():
