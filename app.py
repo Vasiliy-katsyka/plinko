@@ -202,6 +202,16 @@ class Deposit(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=True)
 
+class UserGiftInventory(Base):
+    __tablename__ = "plinko_user_gifts"
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("plinko_users.telegram_id"), nullable=False)
+    gift_id = Column(String, nullable=False) # The gift's unique ID from TG
+    gift_name = Column(String, nullable=False)
+    value_at_win = Column(Float, nullable=False) # IMPORTANT: Store the Star value at the moment of winning
+    imageUrl = Column(String, nullable=False)
+    won_at = Column(DateTime(timezone=True), server_default=func.now())
+
 Base.metadata.create_all(bind=engine)
 
 app = Flask(__name__)
@@ -415,51 +425,125 @@ def claim_free_drop():
 
 @app.route('/api/plinko_drop', methods=['POST'])
 def plinko_drop():
+    """
+    Handles a single Plinko chip drop.
+    Supports both 'xs' mode (winnings in Stars) and 'gifts' mode (winnings as inventory items).
+    """
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
-    if not auth_data: return jsonify({"error": "Authentication failed"}), 401
+    if not auth_data:
+        return jsonify({"error": "Authentication failed"}), 401
+
     user_id = auth_data['id']
     data = flask_request.get_json()
-    bet_amount = Decimal(str(data.get('bet', 0))) # Bet is in Stars
-    risk = data.get('risk', 'medium')
-    if risk not in PLINKO_CONFIGS: return jsonify({"error": "Invalid risk level"}), 400
+    if not data:
+        return jsonify({"error": "Invalid request body"}), 400
+
+    # --- Extract data from the request ---
+    try:
+        bet_amount = Decimal(str(data.get('bet', 0)))
+        risk = data.get('risk', 'medium')
+        mode = data.get('mode', 'xs') # 'xs' or 'gifts'
+        # board_gifts is an array of gift objects sent from the frontend in 'gifts' mode
+        board_gifts = data.get('board_gifts', None)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid bet amount format"}), 400
+
+    if risk not in PLINKO_CONFIGS:
+        return jsonify({"error": "Invalid risk level"}), 400
+
     db = SessionLocal()
     try:
+        # --- 1. Fetch user and validate balance ---
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        if not user or Decimal(str(user.balance)) < bet_amount:
+        if not user:
+            # This case is unlikely if user_data endpoint is called first, but it's a good safeguard.
+            return jsonify({"error": "User not found"}), 404
+            
+        if Decimal(str(user.balance)) < bet_amount:
             return jsonify({"error": "Insufficient balance"}), 400
+
+        # --- 2. Always subtract the bet from the user's balance ---
+        user.balance = float(Decimal(str(user.balance)) - bet_amount)
+
+        # --- 3. Run the Plinko simulation to get the outcome ---
+        config = PLINKO_CONFIGS[risk]
+        rows = config['rows']
         
-        config = PLINKO_CONFIGS[risk]; rows = config['rows']
-        
+        # This logic determines the ball's path and final landing spot
         CENTER_BIAS = 0.2
         horizontal_offset = 0
-        path = []
         for _ in range(rows):
-            if horizontal_offset > 0: 
+            if horizontal_offset > 0:
                 direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
             elif horizontal_offset < 0:
                 direction = random.choices([-1, 1], weights=[0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
             else:
                 direction = random.choice([-1, 1])
             horizontal_offset += direction
-            path.append(direction)
 
         center_index = len(config['multipliers']) // 2
         final_index = max(0, min(len(config['multipliers']) - 1, center_index + horizontal_offset))
         multiplier = Decimal(str(config['multipliers'][final_index]))
-        winnings = bet_amount * multiplier # Winnings are in Stars
         
-        user.balance = float(Decimal(str(user.balance)) - bet_amount + winnings)
-        drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
-        db.add(drop_log); db.commit()
+        # --- 4. Handle winnings based on the game mode ---
+        won_item_details = None
         
-        return jsonify({ 
-            "status": "success", 
-            "multiplier": float(multiplier), 
-            "winnings": float(winnings), # Winnings in Stars
-            "new_balance": user.balance, # Balance in Stars
+        if mode == 'gifts':
+            # --- GIFTS MODE ---
+            # Winnings are an inventory item, not Stars.
+            winnings = Decimal('0')
+
+            # Validate that the frontend sent the board context
+            if not board_gifts or not isinstance(board_gifts, list) or len(board_gifts) <= final_index:
+                db.rollback() # Abort transaction
+                return jsonify({"error": "Gift context was not provided or was invalid for the outcome."}), 400
+
+            won_gift_data = board_gifts[final_index]
+
+            # Create a new inventory record for the won gift
+            new_gift = UserGiftInventory(
+                user_id=user_id,
+                gift_id=str(won_gift_data.get('id', 'N/A')),
+                gift_name=won_gift_data.get('name', 'Unknown Gift'),
+                value_at_win=float(won_gift_data.get('value', 0)),
+                imageUrl=won_gift_data.get('imageUrl', '')
+            )
+            db.add(new_gift)
+            won_item_details = won_gift_data # For the JSON response
+
+        else:
+            # --- XS MODE (Default) ---
+            # Winnings are Stars, added directly to the balance.
+            winnings = bet_amount * multiplier
+            user.balance = float(Decimal(str(user.balance)) + winnings)
+
+        # --- 5. Log the drop event for statistics ---
+        drop_log = PlinkoDrop(
+            user_id=user_id,
+            bet_amount=float(bet_amount),
+            risk_level=risk,
+            multiplier_won=float(multiplier),
+            winnings=float(winnings) # This will be 0 for gift wins
+        )
+        db.add(drop_log)
+
+        # --- 6. Commit all changes to the database ---
+        db.commit()
+
+        # --- 7. Send the result back to the frontend ---
+        return jsonify({
+            "status": "success",
+            "multiplier": float(multiplier),
+            "winnings": float(winnings), # The amount of STARS won (0 in gifts mode)
+            "new_balance": user.balance, # The final Star balance
             "final_slot_index": final_index,
-            "path": path
+            "won_item": won_item_details # Null in 'xs' mode, gift object in 'gifts' mode
         })
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error during Plinko drop for user {user_id}: {e}")
+        return jsonify({"error": "An internal server error occurred"}), 500
     finally:
         db.close()
 
@@ -525,6 +609,59 @@ def build_master_gift_list():
         })
     
     return master_list
+
+@app.route('/api/get_inventory', methods=['POST'])
+def get_inventory():
+    auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
+    if not auth_data: return jsonify({"error": "Auth failed"}), 401
+    user_id = auth_data['id']
+    db = SessionLocal()
+    try:
+        inventory_items = db.query(UserGiftInventory).filter(UserGiftInventory.user_id == user_id).order_by(UserGiftInventory.won_at.desc()).all()
+        # Convert SQLAlchemy objects to dictionaries
+        inventory_list = [{
+            "inventory_id": item.id,
+            "name": item.gift_name,
+            "value": item.value_at_win,
+            "imageUrl": item.imageUrl
+        } for item in inventory_items]
+        return jsonify({"inventory": inventory_list})
+    finally:
+        db.close()
+
+
+# POST endpoint to convert a gift to Stars
+@app.route('/api/convert_gift', methods=['POST'])
+def convert_gift():
+    auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
+    if not auth_data: return jsonify({"error": "Auth failed"}), 401
+    user_id = auth_data['id']
+    data = flask_request.get_json()
+    inventory_id = data.get('inventory_id')
+
+    db = SessionLocal()
+    try:
+        # Find the gift in the user's inventory to ensure they own it
+        gift_to_convert = db.query(UserGiftInventory).filter(UserGiftInventory.id == inventory_id, UserGiftInventory.user_id == user_id).first()
+        if not gift_to_convert:
+            return jsonify({"error": "Gift not found in your inventory."}), 404
+
+        user = db.query(User).filter(User.telegram_id == user_id).first()
+        
+        # Add the gift's value to the user's balance
+        user.balance += gift_to_convert.value_at_win
+        
+        # Remove the gift from the inventory
+        db.delete(gift_to_convert)
+        db.commit()
+
+        return jsonify({"status": "success", "message": "Gift converted to Stars!", "new_balance": user.balance})
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error converting gift: {e}")
+        return jsonify({"error": "An error occurred."}), 500
+    finally:
+        db.close()
 
 @app.route('/api/get_board_slots', methods=['POST'])
 def get_board_slots():
