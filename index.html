@@ -430,42 +430,58 @@ document.addEventListener('DOMContentLoaded', () => {
             loadInventory();
         }
     }
+    // --- NEW AND CORRECTED updateBoardSlots() FUNCTION ---
     async function updateBoardSlots() {
         const bet = parseFloat(selectors.betAmountInput.value);
-        
+    
         try {
-            // Call our new backend endpoint
             const response = await apiRequest('/api/get_board_slots', 'POST', {
                 risk: currentRisk,
                 bet: bet,
                 mode: currentGameMode
             });
-
-            if (currentGameMode === 'gifts') {
-                giftSlotsCache = response.slots; // Store the gift data
-            } else {
-                giftSlotsCache = []; // Clear the cache if not in gifts mode
-            }
             
             selectors.slotsContainer.innerHTML = ''; // Clear existing slots
             
-            response.slots.forEach(slotData => {
-                const slot = document.createElement('div');
-                slot.className = 'slot';
+            // --- CORE FIX STARTS HERE ---
+            
+            // First, check the 'type' from the server's response
+            if (response.type === 'gifts') {
+                // If it's gifts, we store the data for when a user wins one
+                giftSlotsCache = response.slots;
+
+                // Now, loop through the array located at response.slots
+                response.slots.forEach(giftData => {
+                    const slot = document.createElement('div');
+                    slot.className = 'slot';
+                    
+                    // Directly build the gift display. We don't need to check for a
+                    // 'display' property anymore because we know we're in gifts mode.
+                    slot.innerHTML = `<img src="${giftData.imageUrl}" title="${giftData.name} (~${Math.round(giftData.value)} Stars)" style="height: 80%; object-fit: contain;">`;
+                    
+                    // Color the slot background based on its original multiplier value
+                    slot.style.backgroundColor = getSlotColor(giftData.multiplier);
+                    
+                    selectors.slotsContainer.appendChild(slot);
+                });
+
+            } else { // This handles 'xs' mode
+                giftSlotsCache = []; // Clear the gift cache
                 
-                if (slotData.display === 'image') {
-                    // Gift Mode
-                    slot.innerHTML = `<img src="${slotData.imageUrl}" title="${slotData.name} (~${Math.round(slotData.value)} Stars)" style="height: 80%; object-fit: contain;">`;
-                    slot.style.backgroundColor = getSlotColor(slotData.value / bet); // Color based on effective multiplier
-                } else {
-                    // XS Mode
-                    const multiplier = parseFloat(slotData.display);
-                    slot.textContent = slotData.display;
+                // Loop through the array at response.slots for the multipliers
+                response.slots.forEach(slotData => {
+                    const slot = document.createElement('div');
+                    slot.className = 'slot';
+                    
+                    const multiplier = parseFloat(slotData.multiplier);
+                    slot.textContent = `${multiplier}x`;
                     slot.style.backgroundColor = getSlotColor(multiplier);
-                }
-                selectors.slotsContainer.appendChild(slot);
-            });
-    
+                    
+                    selectors.slotsContainer.appendChild(slot);
+                });
+            }
+            // --- CORE FIX ENDS HERE ---
+
         } catch (error) {
             console.error("Failed to update board slots:", error);
             tg.showAlert("Не удалось загрузить оформление для слотов.");
