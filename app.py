@@ -450,15 +450,11 @@ def claim_free_drop():
 @app.route('/api/plinko_drop', methods=['POST'])
 def plinko_drop():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
-    if not auth_data:
-        return jsonify({"error": "Authentication failed"}), 401
+    if not auth_data: return jsonify({"error": "Authentication failed"}), 401
 
     user_id = auth_data['id']
     data = flask_request.get_json()
-    if not data:
-        return jsonify({"error": "Invalid request body"}), 400
-
-    bet_mode = data.get('betMode') # e.g., '200', '1000', '4000'
+    bet_mode = data.get('betMode')
 
     if bet_mode not in BET_MODES_CONFIG:
         return jsonify({"error": "Invalid bet mode"}), 400
@@ -474,35 +470,37 @@ def plinko_drop():
 
         user.balance = float(Decimal(str(user.balance)) - bet_amount)
         
-        # Plinko simulation logic
+        # Plinko simulation to find the winning slot index
         rows = config['rows']
         CENTER_BIAS = 0.2
         horizontal_offset = 0
         for _ in range(rows):
             direction = random.choice([-1, 1]) if horizontal_offset == 0 else random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS] if horizontal_offset > 0 else [0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
             horizontal_offset += direction
-
         center_index = len(config['slots']) // 2
         final_index = max(0, min(len(config['slots']) - 1, center_index + horizontal_offset))
         
+        # Determine winnings based on the winning slot's rule
         prize_config = config['slots'][final_index]
         winnings = Decimal('0')
         
-        if isinstance(prize_config, list):
-            # It's a range [min, max]
-            winnings = Decimal(str(random.randint(prize_config[0], prize_config[1])))
-        elif isinstance(prize_config, str):
-            # It's an emoji gift name
-            if prize_config in EMOJI_GIFTS:
-                winnings = Decimal(str(EMOJI_GIFTS[prize_config]['value']))
-        
+        if isinstance(prize_config, str) and prize_config in EMOJI_GIFTS:
+            # Won a fixed-value emoji gift
+            winnings = Decimal(str(EMOJI_GIFTS[prize_config]['value']))
+        elif isinstance(prize_config, list):
+            # Won a dynamic gift slot, so find a gift in that range and award its value
+            master_gift_list = build_master_gift_list()
+            if not master_gift_list: # If API fails, award the average of the range as a fallback
+                winnings = Decimal(str(sum(prize_config) / 2))
+            else:
+                won_gift = select_gift_for_range(prize_config[0], prize_config[1], master_gift_list)
+                winnings = Decimal(str(won_gift.get('value', sum(prize_config) / 2)))
+
         user.balance = float(Decimal(str(user.balance)) + winnings)
         
-        multiplier_won = winnings / bet_amount if bet_amount > 0 else 0
-
         drop_log = PlinkoDrop(
             user_id=user_id, bet_amount=float(bet_amount), risk_level=f"mode_{bet_mode}",
-            multiplier_won=float(multiplier_won), winnings=float(winnings)
+            multiplier_won=float(winnings / bet_amount if bet_amount > 0 else 0), winnings=float(winnings)
         )
         db.add(drop_log)
         db.commit()
@@ -651,27 +649,58 @@ def get_board_slots():
     config = BET_MODES_CONFIG[bet_mode]
     bet_amount = config['bet_amount']
     
-    formatted_slots = []
-    for slot_config in config['slots']:
-        if isinstance(slot_config, list):
-            avg_value = sum(slot_config) / 2
-            formatted_slots.append({
-                "type": "range", "display": f"{slot_config[0]}-{slot_config[1]}",
-                "value": avg_value, "multiplier": avg_value / bet_amount if bet_amount > 0 else 0
-            })
-        elif isinstance(slot_config, str) and slot_config in EMOJI_GIFTS:
-            gift_data = EMOJI_GIFTS[slot_config]
-            gift_value = gift_data['value']
-            formatted_slots.append({
-                "type": "gift", "name": slot_config, "imageUrl": gift_data['imageUrl'],
-                "value": gift_value, "multiplier": gift_value / bet_amount if bet_amount > 0 else 0
-            })
+    try:
+        # Build the master list of all gifts with their current floor prices
+        master_gift_list = build_master_gift_list()
+        if not master_gift_list:
+            return jsonify({"error": "Could not load gift market data. Please try again."}), 503
 
-    return jsonify({"slots": formatted_slots})
+        formatted_slots = []
+        for slot_config in config['slots']:
+            gift_to_display = None
+            if isinstance(slot_config, list):
+                # This is a price range, so find a suitable gift
+                min_val, max_val = slot_config
+                gift_to_display = select_gift_for_range(min_val, max_val, master_gift_list)
+            
+            elif isinstance(slot_config, str) and slot_config in EMOJI_GIFTS:
+                # This is a specific emoji gift
+                gift_data = EMOJI_GIFTS[slot_config]
+                gift_to_display = {
+                    "name": slot_config,
+                    "imageUrl": gift_data['imageUrl'],
+                    "value": gift_data['value']
+                }
+
+            if gift_to_display:
+                gift_value = gift_to_display.get('value', 0)
+                formatted_slots.append({
+                    "name": gift_to_display.get('name', 'Unknown'),
+                    "imageUrl": gift_to_display.get('imageUrl', ''),
+                    "value": gift_value,
+                    "multiplier": gift_value / bet_amount if bet_amount > 0 else 0
+                })
+
+        return jsonify({"slots": formatted_slots})
+    except Exception as e:
+        logger.error(f"Error in get_board_slots: {e}", exc_info=True)
+        return jsonify({"error": "Server error while preparing game board."}), 500
 
 @app.route('/api/plinko_drop_batch', methods=['POST'])
 def plinko_drop_batch():
     return jsonify({"error": "This feature is currently disabled."}), 403
+
+def select_gift_for_range(min_val, max_val, gift_list):
+    """Selects a random gift from the list that fits within the price range."""
+    eligible_gifts = [g for g in gift_list if min_val <= g.get('value', 0) <= max_val]
+    
+    if eligible_gifts:
+        return random.choice(eligible_gifts)
+    else:
+        # Fallback: if no gift is in the exact range, find the one with the closest value.
+        # This prevents errors if floor prices shift outside the defined ranges.
+        mid_point = (min_val + max_val) / 2
+        return min(gift_list, key=lambda g: abs(g.get('value', 0) - mid_point))
 
 @app.route('/api/initiate_ton_deposit', methods=['POST'])
 def initiate_ton_deposit():
