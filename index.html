@@ -108,35 +108,19 @@
         .loader { border: 4px solid #3a3f78; border-top: 4px solid var(--highlight-primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 15px auto; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #deposit-amount-input { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); text-align: center; font-size: 1.1rem; }
         
-        /* New Styles for Bet Mode Buttons */
         #bet-mode-selector {
-            display: flex;
-            background-color: var(--bg-color);
-            border-radius: 12px;
-            padding: 4px;
-            margin-bottom: 10px;
-            border: 1px solid var(--border-color);
-            gap: 5px;
+            display: flex; background-color: var(--bg-color); border-radius: 12px;
+            padding: 4px; margin-bottom: 10px; border: 1px solid var(--border-color); gap: 5px;
         }
         .bet-mode-button {
-            flex-grow: 1;
-            padding: 10px 5px;
-            border: none;
-            background: none;
-            border-radius: 9px;
-            color: var(--text-muted);
-            font-family: 'Poppins', sans-serif;
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            flex-grow: 1; padding: 10px 5px; border: none; background: none; border-radius: 9px;
+            color: var(--text-muted); font-family: 'Poppins', sans-serif; font-weight: 600;
+            font-size: 1rem; cursor: pointer; transition: all 0.3s ease;
         }
         .bet-mode-button.active {
-            background: var(--button-primary-bg);
-            color: white;
+            background: var(--button-primary-bg); color: white;
             box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
         }
-
     </style>
 </head>
 <body>
@@ -240,8 +224,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram.WebApp;
     const API_BASE_URL = 'https://plinko-4vm7.onrender.com';
-    const STAR_ICON_URL = 'https://github.com/Vasiliy-katsyka/plinko/blob/main/star.png?raw=true';
-    const STAR_ICON_HTML = `<img src="${STAR_ICON_URL}" alt="Stars" style="height: 1em; vertical-align: -0.1em; margin-left: 4px;">`;
+    const STAR_ICON_HTML = `<img src="https://github.com/Vasiliy-katsyka/plinko/blob/main/star.png?raw=true" alt="Stars" style="height: 1em; vertical-align: -0.1em; margin-left: 4px;">`;
 
     let currentUser = { id: null, balance: 0.00 };
     let isDropping = false;
@@ -253,9 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let freeDropTimerInterval = null;
     let currentDepositInfo = { address: '', comment: '' };
 
-    // --- Simplified State ---
-    let currentBetMode = '200'; // Default bet mode: '200', '1000', or '4000'
-    const NUM_ROWS = 8; // All modes now use 8 rows
+    let currentBetMode = '200';
+    const NUM_ROWS = 8;
 
     const selectors = {
         views: document.querySelectorAll('.view'),
@@ -284,21 +266,16 @@ document.addEventListener('DOMContentLoaded', () => {
         closeGiftsModalBtn: document.getElementById('close-gifts-modal-btn'),
         timerElement: document.getElementById('timer'),
         claimFreeDropBtn: document.getElementById('claim-free-drop-btn'),
+        inventoryContainer: document.getElementById('inventory-container'),
+        inventoryPlaceholder: document.getElementById('inventory-placeholder')
     };
-    const inventoryContainer = document.getElementById('inventory-container');
-    const inventoryPlaceholder = document.getElementById('inventory-placeholder');
     
     async function apiRequest(endpoint, method = 'POST', body = {}) {
         const config = {
             method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Telegram-Init-Data': tg.initData
-            }
+            headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData }
         };
-        if (method.toUpperCase() !== 'GET') {
-            config.body = JSON.stringify(body);
-        }
+        if (method.toUpperCase() !== 'GET') { config.body = JSON.stringify(body); }
         try {
             const response = await fetch(API_BASE_URL + endpoint, config);
             if (!response.ok) {
@@ -313,8 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function initializeApp() {
-        tg.ready();
-        tg.expand();
+        tg.ready(); tg.expand();
         try {
             const userData = await apiRequest('/api/user_data', 'POST', {});
             currentUser = userData;
@@ -323,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setupBoard();
         } catch (error) {
             console.error("Failed to load user data:", error);
-            tg.showAlert("Не удалось загрузить данные пользователя. Попробуйте перезапустить приложение.");
+            tg.showAlert("Не удалось загрузить данные пользователя.");
         }
     }
 
@@ -340,48 +316,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentUser.photo_url) {
             const img = document.createElement('img');
             img.src = currentUser.photo_url;
-            img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
+            img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
             selectors.profileAvatar.appendChild(img);
-            selectors.profileAvatar.style.padding = '0'; selectors.profileAvatar.style.fontSize = '0';
+            selectors.profileAvatar.style.cssText = 'padding: 0; font-size: 0;';
         } else {
             selectors.profileAvatar.textContent = (currentUser.first_name || "?").charAt(0);
-            selectors.profileAvatar.style.padding = ''; selectors.profileAvatar.style.fontSize = '3rem';
+            selectors.profileAvatar.style.cssText = '';
         }
     }
 
     function switchView(viewId) {
-        if (freeDropTimerInterval) {
-            clearInterval(freeDropTimerInterval);
-            freeDropTimerInterval = null;
-        }
+        if (freeDropTimerInterval) { clearInterval(freeDropTimerInterval); freeDropTimerInterval = null; }
         selectors.views.forEach(v => v.classList.toggle('active', v.id === viewId));
         selectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
-        if (viewId === 'free-try-view') {
-            initFreeTryView();
-        }
-        if (viewId === 'profile-view') {
-            loadInventory();
-        }
+        if (viewId === 'free-try-view') initFreeTryView();
+        if (viewId === 'profile-view') loadInventory();
     }
     
     async function updateBoardSlots() {
         try {
-            const response = await apiRequest('/api/get_board_slots', 'POST', {
-                betMode: currentBetMode
-            });
+            const response = await apiRequest('/api/get_board_slots', 'POST', { betMode: currentBetMode });
             selectors.slotsContainer.innerHTML = '';
             response.slots.forEach(slotData => {
                 const slot = document.createElement('div');
                 slot.className = 'slot';
-
-                if (slotData.type === 'gift') {
-                    slot.innerHTML = `<img src="${slotData.imageUrl}" title="${slotData.name}" style="height: 80%; object-fit: contain;">`;
-                } else { // 'range' type
-                    const parts = slotData.display.split('-');
-                    const fontSize = (parts[0].length > 4 || (parts[1] && parts[1].length > 4)) ? 'clamp(0.5rem, 2vw, 0.7rem)' : 'clamp(0.6rem, 2.5vw, 0.8rem)';
-                    slot.style.fontSize = fontSize;
-                    slot.textContent = slotData.display;
-                }
+                slot.innerHTML = `<img src="${slotData.imageUrl}" title="${slotData.name} (~${Math.round(slotData.value)} Stars)" style="height: 80%; object-fit: contain;">`;
                 slot.style.backgroundColor = getSlotColor(slotData.multiplier);
                 selectors.slotsContainer.appendChild(slot);
             });
@@ -393,17 +352,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleSingleDrop() {
         const betAmount = parseInt(currentBetMode, 10);
-        if (betAmount > currentUser.balance) {
-            tg.showAlert("Недостаточно средств!");
-            return;
-        }
+        if (betAmount > currentUser.balance) { tg.showAlert("Недостаточно средств!"); return; }
         setControlsDisabled(true);
         currentUser.balance -= betAmount;
         updateBalanceUI();
         try {
-            const result = await apiRequest('/api/plinko_drop', 'POST', {
-                betMode: currentBetMode
-            });
+            const result = await apiRequest('/api/plinko_drop', 'POST', { betMode: currentBetMode });
             animateSingleChip(result);
         } catch (error) {
             currentUser.balance += betAmount;
@@ -419,15 +373,8 @@ document.addEventListener('DOMContentLoaded', () => {
         chipEl.style.width = `${CHIP_RADIUS * 2}px`;
         chipEl.style.height = `${CHIP_RADIUS * 2}px`;
         const newChip = {
-            id: chipId,
-            x: BOARD_WIDTH / 2,
-            y: CHIP_RADIUS,
-            vx: (Math.random() - 0.5) * 4,
-            vy: 0,
-            element: chipEl,
-            serverResult: resultFromServer,
-            isGuided: false,
-            targetX: undefined
+            id: chipId, x: BOARD_WIDTH / 2, y: CHIP_RADIUS, vx: (Math.random() - 0.5) * 4,
+            vy: 0, element: chipEl, serverResult: resultFromServer, isGuided: false, targetX: undefined
         };
         chipEl.style.transform = `translate(${newChip.x - CHIP_RADIUS}px, ${newChip.y - CHIP_RADIUS}px)`;
         chipEl.style.visibility = 'visible';
@@ -443,15 +390,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupBoard() {
         if (isDropping) return;
         BOARD_WIDTH = selectors.board.clientWidth;
-        if (BOARD_WIDTH === 0) {
-            setTimeout(setupBoard, 50);
-            return;
-        }
+        if (BOARD_WIDTH === 0) { setTimeout(setupBoard, 50); return; }
         BOARD_HEIGHT = selectors.board.clientHeight;
-        const cols = NUM_ROWS + 2; // Derived from rows for consistent layout
+        const cols = NUM_ROWS + 2;
         PEG_RADIUS = BOARD_WIDTH / 150;
         CHIP_RADIUS = BOARD_WIDTH / 45;
-
         pegs = [];
         selectors.board.innerHTML = '';
         const hSpacing = BOARD_WIDTH / cols;
@@ -465,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 pegs.push({ x, y });
                 const pegEl = document.createElement('div');
                 pegEl.className = 'peg';
-                pegEl.style.cssText = `width:${PEG_RADIUS * 2}px;height:${PEG_RADIUS * 2}px;left:${x}px;top:${y}px;`;
+                pegEl.style.cssText = `width:${PEG_RADIUS*2}px;height:${PEG_RADIUS*2}px;left:${x}px;top:${y}px;`;
                 selectors.board.appendChild(pegEl);
             }
         }
@@ -474,19 +417,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updatePhysics() {
         if (activeChips.length === 0) {
-            isDropping = false;
-            setControlsDisabled(false);
+            isDropping = false; setControlsDisabled(false);
             apiRequest('/api/user_data', 'POST', {}).then(userData => {
-                currentUser.balance = userData.balance;
-                updateBalanceUI();
+                currentUser.balance = userData.balance; updateBalanceUI();
             }).catch(e => console.error("Final balance sync failed", e));
             return;
         }
-
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
             const takeoverHeight = BOARD_HEIGHT * 0.88;
-
             if (chip.y > takeoverHeight && !chip.isGuided) {
                 chip.isGuided = true;
                 const finalSlotIndex = chip.serverResult.final_slot_index;
@@ -497,31 +436,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     chip.targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
                 }
             }
-
             if (chip.isGuided && chip.targetX !== undefined) {
                 const forceX = (chip.targetX - chip.x) * 0.01;
-                chip.vx += forceX;
-                chip.vx *= 0.95;
-                chip.vy += GRAVITY;
-            } else {
-                chip.vy += GRAVITY;
-            }
-
-            chip.x += chip.vx;
-            chip.y += chip.vy;
-
+                chip.vx += forceX; chip.vx *= 0.95; chip.vy += GRAVITY;
+            } else { chip.vy += GRAVITY; }
+            chip.x += chip.vx; chip.y += chip.vy;
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
-                chip.vx *= -DAMPING;
-                chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
+                chip.vx *= -DAMPING; chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
-
             if (!chip.isGuided) {
                 pegs.forEach(peg => {
-                    const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx * dx + dy * dy);
+                    const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx+dy*dy);
                     if (dist < CHIP_RADIUS + PEG_RADIUS) {
                         const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
-                        chip.x += Math.cos(angle) * overlap;
-                        chip.y += Math.sin(angle) * overlap;
+                        chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
                         const normalX = dx / dist, normalY = dy / dist;
                         const dot = chip.vx * normalX + chip.vy * normalY;
                         chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
@@ -530,12 +458,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             }
-
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
-            if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
-                endDrop(chip);
-                activeChips.splice(i, 1);
-            }
+            if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) { endDrop(chip); activeChips.splice(i, 1); }
         }
         requestAnimationFrame(updatePhysics);
     }
@@ -567,85 +491,64 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'var(--slot-zero)';
     }
 
-    // --- All functions for profile, deposits, free try, inventory ---
     async function loadInventory() {
-        inventoryContainer.innerHTML = '';
-        inventoryPlaceholder.style.display = 'block';
-        inventoryPlaceholder.textContent = 'Загрузка...';
+        selectors.inventoryContainer.innerHTML = '';
+        selectors.inventoryPlaceholder.style.display = 'block';
+        selectors.inventoryPlaceholder.textContent = 'Загрузка...';
         try {
             const data = await apiRequest('/api/get_inventory');
             if (data.inventory && data.inventory.length > 0) {
-                inventoryPlaceholder.style.display = 'none';
+                selectors.inventoryPlaceholder.style.display = 'none';
                 data.inventory.forEach(item => {
                     const itemEl = document.createElement('div');
-                    itemEl.className = 'inventory-item';
                     itemEl.style.cssText = `background-color: var(--surface-color-2); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: space-between;`;
                     itemEl.innerHTML = `<img src="${item.imageUrl}" style="width: 60px; height: 60px; object-fit: contain;"><span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">${item.name}</span><button class="convert-btn main-button" data-id="${item.inventory_id}" data-value="${item.value}" style="width: 100%; font-size: 0.8rem; padding: 6px; margin-top: 8px; height: auto;">${Math.round(item.value)} ${STAR_ICON_HTML}</button>`;
-                    inventoryContainer.appendChild(itemEl);
+                    selectors.inventoryContainer.appendChild(itemEl);
                 });
-                document.querySelectorAll('.convert-btn').forEach(btn => {
-                    btn.addEventListener('click', handleConvertGift);
-                });
+                document.querySelectorAll('.convert-btn').forEach(btn => btn.addEventListener('click', handleConvertGift));
             } else {
-                inventoryPlaceholder.textContent = 'Инвентарь пуст.';
+                selectors.inventoryPlaceholder.textContent = 'Инвентарь пуст.';
             }
-        } catch (e) {
-            inventoryPlaceholder.textContent = 'Ошибка загрузки.';
-        }
+        } catch (e) { selectors.inventoryPlaceholder.textContent = 'Ошибка загрузки.'; }
     }
     
     async function handleConvertGift(event) {
         const button = event.currentTarget;
         const inventoryId = button.dataset.id;
-        button.disabled = true;
-        button.textContent = '...';
+        button.disabled = true; button.textContent = '...';
         try {
             const response = await apiRequest('/api/convert_gift', 'POST', { inventory_id: inventoryId });
             if (response.status === 'success') {
                 tg.HapticFeedback.notificationOccurred('success');
-                currentUser.balance = response.new_balance;
-                updateBalanceUI();
-                button.closest('.inventory-item').remove();
-                if (inventoryContainer.children.length === 1 && inventoryContainer.children[0].id === 'inventory-placeholder') {
-                    inventoryPlaceholder.style.display = 'block';
-                    inventoryPlaceholder.textContent = 'Инвентарь пуст.';
+                currentUser.balance = response.new_balance; updateBalanceUI();
+                button.closest('div').remove();
+                if (selectors.inventoryContainer.childElementCount === 1) { // Only placeholder is left
+                    selectors.inventoryPlaceholder.style.display = 'block';
+                    selectors.inventoryPlaceholder.textContent = 'Инвентарь пуст.';
                 }
             } else {
                 tg.showAlert(response.error || 'Не удалось конвертировать подарок.');
-                button.disabled = false;
-                button.innerHTML = `${Math.round(button.dataset.value)} ${STAR_ICON_HTML}`;
+                button.disabled = false; button.innerHTML = `${Math.round(button.dataset.value)} ${STAR_ICON_HTML}`;
             }
-        } catch (e) {
-            button.disabled = false;
-            button.innerHTML = `${Math.round(button.dataset.value)} ${STAR_ICON_HTML}`;
-        }
+        } catch (e) { button.disabled = false; button.innerHTML = `${Math.round(button.dataset.value)} ${STAR_ICON_HTML}`; }
     }
 
     function updateFreeDropTimer() {
         const lastClaim = currentUser.last_free_drop_claim;
-        if (!lastClaim) {
-            selectors.timerElement.textContent = "Готово!";
-            selectors.claimFreeDropBtn.disabled = false;
-            return;
-        }
-        const FREE_DROP_INTERVAL = 24 * 60 * 60 * 1000;
-        const nextAvailableTime = new Date(lastClaim).getTime() + FREE_DROP_INTERVAL;
+        if (!lastClaim) { selectors.timerElement.textContent = "Готово!"; selectors.claimFreeDropBtn.disabled = false; return; }
+        const nextAvailableTime = new Date(lastClaim).getTime() + (24 * 60 * 60 * 1000);
         const timeLeft = nextAvailableTime - Date.now();
         if (timeLeft <= 0) {
-            selectors.timerElement.textContent = "Готово!";
-            selectors.claimFreeDropBtn.disabled = false;
+            selectors.timerElement.textContent = "Готово!"; selectors.claimFreeDropBtn.disabled = false;
             if (freeDropTimerInterval) clearInterval(freeDropTimerInterval);
         } else {
             selectors.claimFreeDropBtn.disabled = true;
             const h = Math.floor(timeLeft / 36e5), m = Math.floor((timeLeft % 36e5) / 6e4), s = Math.floor((timeLeft % 6e4) / 1e3);
-            selectors.timerElement.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            selectors.timerElement.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
         }
     }
 
-    function initFreeTryView() {
-        updateFreeDropTimer();
-        freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000);
-    }
+    function initFreeTryView() { updateFreeDropTimer(); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
 
     async function handleClaimFreeDrop() {
         selectors.claimFreeDropBtn.disabled = true;
@@ -658,65 +561,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentUser.balance = result.game_result.new_balance;
                 updateBalanceUI();
                 animateSingleChip(result.game_result);
-            } else {
-                tg.showAlert(result.message);
-                selectors.claimFreeDropBtn.disabled = false;
-            }
-        } catch (e) {
-            selectors.claimFreeDropBtn.disabled = false;
-        }
+            } else { tg.showAlert(result.message); selectors.claimFreeDropBtn.disabled = false; }
+        } catch (e) { selectors.claimFreeDropBtn.disabled = false; }
     }
 
     async function handleTopUpTON() {
-        selectors.topUpTonBtn.disabled = true;
-        selectors.tonDepositStatus.textContent = "Создание запроса...";
-        selectors.tonDepositLoader.style.display = 'block';
-        selectors.depositTonModal.style.display = 'flex';
+        selectors.topUpTonBtn.disabled = true; selectors.tonDepositStatus.textContent = "Создание запроса...";
+        selectors.tonDepositLoader.style.display = 'block'; selectors.depositTonModal.style.display = 'flex';
         try {
             const res = await apiRequest('/api/initiate_ton_deposit', 'POST', {});
             currentDepositInfo = { address: res.recipient_address, comment: res.comment };
             selectors.tonDepositComment.value = res.comment;
             selectors.tonDepositStatus.textContent = "Готово к отправке.";
-        } catch (e) {
-            selectors.tonDepositStatus.textContent = "Ошибка. Попробуйте снова.";
-        } finally {
-            selectors.topUpTonBtn.disabled = false;
-            selectors.tonDepositLoader.style.display = 'none';
-        }
+        } catch (e) { selectors.tonDepositStatus.textContent = "Ошибка. Попробуйте снова."; }
+        finally { selectors.topUpTonBtn.disabled = false; selectors.tonDepositLoader.style.display = 'none'; }
     }
 
     async function verifyTONDeposit() {
-        if (!currentDepositInfo.comment) {
-            tg.showAlert("Ошибка: комментарий для проверки не найден.");
-            return;
-        }
-        selectors.verifyTonDepositBtn.disabled = true;
-        selectors.tonDepositStatus.textContent = "Проверяем транзакцию...";
+        if (!currentDepositInfo.comment) { tg.showAlert("Ошибка: комментарий для проверки не найден."); return; }
+        selectors.verifyTonDepositBtn.disabled = true; selectors.tonDepositStatus.textContent = "Проверяем транзакцию...";
         selectors.tonDepositLoader.style.display = 'block';
         try {
             const res = await apiRequest('/api/verify_ton_deposit', 'POST', { comment: currentDepositInfo.comment });
             if (res.status === 'success') {
-                tg.showAlert(res.message);
-                currentUser.balance = res.new_balance;
-                updateBalanceUI();
+                tg.showAlert(res.message); currentUser.balance = res.new_balance; updateBalanceUI();
                 selectors.depositTonModal.style.display = 'none';
-            } else {
-                selectors.tonDepositStatus.textContent = res.message;
-            }
-        } catch (e) {
-            selectors.tonDepositStatus.textContent = "Ошибка проверки. Попробуйте еще раз.";
-        } finally {
-            selectors.verifyTonDepositBtn.disabled = false;
-            selectors.tonDepositLoader.style.display = 'none';
-        }
+            } else { selectors.tonDepositStatus.textContent = res.message; }
+        } catch (e) { selectors.tonDepositStatus.textContent = "Ошибка проверки. Попробуйте еще раз."; }
+        finally { selectors.verifyTonDepositBtn.disabled = false; selectors.tonDepositLoader.style.display = 'none'; }
     }
 
     async function handleTopUpStars() {
         const amount = parseInt(selectors.depositAmountInput.value);
-        if (isNaN(amount) || amount < 1) {
-            tg.showAlert("Пожалуйста, введите корректную сумму звезд для пополнения.");
-            return;
-        }
+        if (isNaN(amount) || amount < 1) { tg.showAlert("Введите корректную сумму звезд."); return; }
         selectors.topUpStarsBtn.disabled = true;
         try {
             const res = await apiRequest('/api/create_stars_invoice', 'POST', { amount });
@@ -724,15 +601,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (status === 'paid') {
                     tg.showAlert("Оплата прошла успешно! Баланс обновляется...");
                     const userData = await apiRequest('/api/user_data', 'POST', {});
-                    currentUser = userData;
-                    updateBalanceUI();
-                } else {
-                    tg.showAlert(`Статус оплаты: ${status}.`);
-                }
+                    currentUser = userData; updateBalanceUI();
+                } else { tg.showAlert(`Статус оплаты: ${status}.`); }
             });
-        } finally {
-            selectors.topUpStarsBtn.disabled = false;
-        }
+        } finally { selectors.topUpStarsBtn.disabled = false; }
     }
 
     // --- Event Listeners Setup ---
@@ -746,16 +618,11 @@ document.addEventListener('DOMContentLoaded', () => {
     selectors.verifyTonDepositBtn.addEventListener('click', verifyTONDeposit);
     selectors.closeTonDepositModalBtn.addEventListener('click', () => selectors.depositTonModal.style.display = 'none');
     selectors.claimFreeDropBtn.addEventListener('click', handleClaimFreeDrop);
-    
     selectors.openWalletBtn.addEventListener('click', () => {
-        if (!currentDepositInfo.address || !currentDepositInfo.comment) {
-            tg.showAlert("Ошибка: данные для депозита не были загружены."); return;
-        }
-        const encodedComment = encodeURIComponent(currentDepositInfo.comment);
-        const tonUrl = `ton://transfer/${currentDepositInfo.address}?text=${encodedComment}`;
+        if (!currentDepositInfo.address || !currentDepositInfo.comment) { tg.showAlert("Ошибка: данные для депозита не загружены."); return; }
+        const tonUrl = `ton://transfer/${currentDepositInfo.address}?text=${encodeURIComponent(currentDepositInfo.comment)}`;
         tg.openTelegramLink(tonUrl);
     });
-
     selectors.betModeButtons.forEach(button => {
         button.addEventListener('click', () => {
             if (isDropping) return;
