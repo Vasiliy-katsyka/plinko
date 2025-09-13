@@ -52,6 +52,30 @@ PLINKO_CONFIGS = {
     }
 }
 
+BET_MODES_CONFIG = {
+    '200': {
+        'bet_amount': 200,
+        'rows': 8, # Number of peg rows for the simulation
+        'slots': [
+            [600, 900], [350, 600], [200, 350], 'Ring', 'Bear', 'Ring', [200, 350], [350, 600], [600, 900]
+        ]
+    },
+    '1000': {
+        'bet_amount': 1000,
+        'rows': 8,
+        'slots': [
+            [3500, 4000], [2000, 3500], [1000, 2000], [500, 1000], 'Ring', [500, 1000], [1000, 2000], [2000, 3500], [3500, 4000]
+        ]
+    },
+    '4000': {
+        'bet_amount': 4000,
+        'rows': 8,
+        'slots': [
+            [10000, 20000], [7000, 10000], [4000, 7000], [2000, 4000], [1000, 2000], [2000, 4000], [4000, 7000], [7000, 10000], [10000, 20000]
+        ]
+    }
+}
+
 REGULAR_GIFTS = {
     "5983471780763796287": "santahat",
     "5936085638515261992": "signetring",
@@ -425,10 +449,6 @@ def claim_free_drop():
 
 @app.route('/api/plinko_drop', methods=['POST'])
 def plinko_drop():
-    """
-    Handles a single Plinko chip drop.
-    Supports both 'xs' mode (winnings in Stars) and 'gifts' mode (winnings as inventory items).
-    """
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
     if not auth_data:
         return jsonify({"error": "Authentication failed"}), 401
@@ -438,106 +458,60 @@ def plinko_drop():
     if not data:
         return jsonify({"error": "Invalid request body"}), 400
 
-    # --- Extract data from the request ---
-    try:
-        bet_amount = Decimal(str(data.get('bet', 0)))
-        risk = data.get('risk', 'medium')
-        mode = data.get('mode', 'xs') # 'xs' or 'gifts'
-        # board_gifts is an array of gift objects sent from the frontend in 'gifts' mode
-        board_gifts = data.get('board_gifts', None)
-    except (TypeError, ValueError):
-        return jsonify({"error": "Invalid bet amount format"}), 400
+    bet_mode = data.get('betMode') # e.g., '200', '1000', '4000'
 
-    if risk not in PLINKO_CONFIGS:
-        return jsonify({"error": "Invalid risk level"}), 400
-
+    if bet_mode not in BET_MODES_CONFIG:
+        return jsonify({"error": "Invalid bet mode"}), 400
+    
+    config = BET_MODES_CONFIG[bet_mode]
+    bet_amount = Decimal(str(config['bet_amount']))
+    
     db = SessionLocal()
     try:
-        # --- 1. Fetch user and validate balance ---
         user = db.query(User).filter(User.telegram_id == user_id).first()
-        if not user:
-            # This case is unlikely if user_data endpoint is called first, but it's a good safeguard.
-            return jsonify({"error": "User not found"}), 404
-            
-        if Decimal(str(user.balance)) < bet_amount:
+        if not user or Decimal(str(user.balance)) < bet_amount:
             return jsonify({"error": "Insufficient balance"}), 400
 
-        # --- 2. Always subtract the bet from the user's balance ---
         user.balance = float(Decimal(str(user.balance)) - bet_amount)
-
-        # --- 3. Run the Plinko simulation to get the outcome ---
-        config = PLINKO_CONFIGS[risk]
-        rows = config['rows']
         
-        # This logic determines the ball's path and final landing spot
+        # Plinko simulation logic
+        rows = config['rows']
         CENTER_BIAS = 0.2
         horizontal_offset = 0
         for _ in range(rows):
-            if horizontal_offset > 0:
-                direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
-            elif horizontal_offset < 0:
-                direction = random.choices([-1, 1], weights=[0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
-            else:
-                direction = random.choice([-1, 1])
+            direction = random.choice([-1, 1]) if horizontal_offset == 0 else random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS] if horizontal_offset > 0 else [0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
             horizontal_offset += direction
 
-        center_index = len(config['multipliers']) // 2
-        final_index = max(0, min(len(config['multipliers']) - 1, center_index + horizontal_offset))
-        multiplier = Decimal(str(config['multipliers'][final_index]))
+        center_index = len(config['slots']) // 2
+        final_index = max(0, min(len(config['slots']) - 1, center_index + horizontal_offset))
         
-        # --- 4. Handle winnings based on the game mode ---
-        won_item_details = None
+        prize_config = config['slots'][final_index]
+        winnings = Decimal('0')
         
-        if mode == 'gifts':
-            # --- GIFTS MODE ---
-            # Winnings are an inventory item, not Stars.
-            winnings = Decimal('0')
+        if isinstance(prize_config, list):
+            # It's a range [min, max]
+            winnings = Decimal(str(random.randint(prize_config[0], prize_config[1])))
+        elif isinstance(prize_config, str):
+            # It's an emoji gift name
+            if prize_config in EMOJI_GIFTS:
+                winnings = Decimal(str(EMOJI_GIFTS[prize_config]['value']))
+        
+        user.balance = float(Decimal(str(user.balance)) + winnings)
+        
+        multiplier_won = winnings / bet_amount if bet_amount > 0 else 0
 
-            # Validate that the frontend sent the board context
-            if not board_gifts or not isinstance(board_gifts, list) or len(board_gifts) <= final_index:
-                db.rollback() # Abort transaction
-                return jsonify({"error": "Gift context was not provided or was invalid for the outcome."}), 400
-
-            won_gift_data = board_gifts[final_index]
-
-            # Create a new inventory record for the won gift
-            new_gift = UserGiftInventory(
-                user_id=user_id,
-                gift_id=str(won_gift_data.get('id', 'N/A')),
-                gift_name=won_gift_data.get('name', 'Unknown Gift'),
-                value_at_win=float(won_gift_data.get('value', 0)),
-                imageUrl=won_gift_data.get('imageUrl', '')
-            )
-            db.add(new_gift)
-            won_item_details = won_gift_data # For the JSON response
-
-        else:
-            # --- XS MODE (Default) ---
-            # Winnings are Stars, added directly to the balance.
-            winnings = bet_amount * multiplier
-            user.balance = float(Decimal(str(user.balance)) + winnings)
-
-        # --- 5. Log the drop event for statistics ---
         drop_log = PlinkoDrop(
-            user_id=user_id,
-            bet_amount=float(bet_amount),
-            risk_level=risk,
-            multiplier_won=float(multiplier),
-            winnings=float(winnings) # This will be 0 for gift wins
+            user_id=user_id, bet_amount=float(bet_amount), risk_level=f"mode_{bet_mode}",
+            multiplier_won=float(multiplier_won), winnings=float(winnings)
         )
         db.add(drop_log)
-
-        # --- 6. Commit all changes to the database ---
         db.commit()
 
-        # --- 7. Send the result back to the frontend ---
         return jsonify({
             "status": "success",
-            "multiplier": float(multiplier),
-            "winnings": float(winnings), # The amount of STARS won (0 in gifts mode)
-            "new_balance": user.balance, # The final Star balance
+            "winnings": float(winnings),
+            "new_balance": user.balance,
             "final_slot_index": final_index,
-            "won_item": won_item_details # Null in 'xs' mode, gift object in 'gifts' mode
         })
 
     except Exception as e:
@@ -669,214 +643,35 @@ def get_board_slots():
     if not auth_data: return jsonify({"error": "Authentication failed"}), 401
     
     data = flask_request.get_json()
-    risk = data.get('risk', 'medium')
-    bet_amount = float(data.get('bet', 15.0))
-    mode = data.get('mode', 'xs')
+    bet_mode = data.get('betMode', '200')
 
-    if risk not in PLINKO_CONFIGS: return jsonify({"error": "Invalid risk level"}), 400
+    if bet_mode not in BET_MODES_CONFIG:
+        return jsonify({"error": "Invalid bet mode"}), 400
     
-    config = PLINKO_CONFIGS[risk]
-    multipliers = config['multipliers']
+    config = BET_MODES_CONFIG[bet_mode]
+    bet_amount = config['bet_amount']
+    
+    formatted_slots = []
+    for slot_config in config['slots']:
+        if isinstance(slot_config, list):
+            avg_value = sum(slot_config) / 2
+            formatted_slots.append({
+                "type": "range", "display": f"{slot_config[0]}-{slot_config[1]}",
+                "value": avg_value, "multiplier": avg_value / bet_amount if bet_amount > 0 else 0
+            })
+        elif isinstance(slot_config, str) and slot_config in EMOJI_GIFTS:
+            gift_data = EMOJI_GIFTS[slot_config]
+            gift_value = gift_data['value']
+            formatted_slots.append({
+                "type": "gift", "name": slot_config, "imageUrl": gift_data['imageUrl'],
+                "value": gift_value, "multiplier": gift_value / bet_amount if bet_amount > 0 else 0
+            })
 
-    if mode == 'xs':
-        slots = [{"display": f"{m}x", "multiplier": m} for m in multipliers]
-        return jsonify({"slots": slots, "type": "xs"})
-
-    elif mode == 'gifts':
-        try:
-            # --- 1. PREPARE DATA ---
-            full_gift_list = build_master_gift_list()
-            if not full_gift_list:
-                return jsonify({"error": "Could not load gift data."}), 500
-            
-            # Create a list of target values based on bet and multipliers
-            target_slots = [{"target_value": bet_amount * m, "multiplier": m, "assigned_gift": None} for m in multipliers]
-            # Sort slots by target value to make assignment more logical
-            target_slots.sort(key=lambda x: x['target_value'])
-
-            # --- 2. DEFINE ELIGIBLE GIFTS (as before) ---
-            min_multiplier = min(m for m in multipliers if m > 0)
-            max_multiplier = max(multipliers)
-            min_winnable_value = bet_amount * min_multiplier * 0.8
-            max_winnable_value = bet_amount * max_multiplier * 1.2
-
-            eligible_gifts = [g for g in full_gift_list if min_winnable_value <= g['value'] <= max_winnable_value]
-            
-            # Create mutable copies to work with
-            remaining_eligible = list(eligible_gifts)
-            remaining_all = list(full_gift_list)
-
-            # --- 3. ROBUST ASSIGNMENT ALGORITHM ---
-
-            # Pass 1: Assign the BEST POSSIBLE matches from the eligible pool
-            for slot in target_slots:
-                if not remaining_eligible: break # Stop if we run out of eligible gifts
-
-                # Find the eligible gift with the smallest price difference
-                best_eligible_gift = min(remaining_eligible, key=lambda g: abs(g['value'] - slot['target_value']))
-                
-                slot['assigned_gift'] = best_eligible_gift
-                remaining_eligible.remove(best_eligible_gift) # Mark as used
-                # Also remove from the "all gifts" list to prevent duplicates in the next pass
-                if best_eligible_gift in remaining_all:
-                     remaining_all.remove(best_eligible_gift)
-
-            # Pass 2: Fill any remaining empty slots from the ENTIRE gift pool
-            for slot in target_slots:
-                if slot['assigned_gift'] is None: # If this slot is still empty
-                    if not remaining_all: # Should be impossible if we have enough total gifts
-                        logger.error("Ran out of all gifts to assign.")
-                        break
-
-                    # Find the best available gift from what's left of the full list
-                    best_remaining_gift = min(remaining_all, key=lambda g: abs(g['value'] - slot['target_value']))
-                    
-                    slot['assigned_gift'] = best_remaining_gift
-                    remaining_all.remove(best_remaining_gift) # Mark as used
-
-            # --- 4. FORMAT THE FINAL RESPONSE ---
-            # Unsort the slots back to their original multiplier order
-            final_slots_data = []
-            for m in multipliers:
-                for slot in target_slots:
-                    if slot['multiplier'] == m and slot['assigned_gift']:
-                        gift = slot['assigned_gift']
-                        final_slots_data.append({
-                            "id": gift["id"],
-                            "name": gift["name"],
-                            "value": gift["value"],
-                            "imageUrl": gift["imageUrl"],
-                            "multiplier": m
-                        })
-                        # Remove the found slot to handle duplicate multipliers correctly
-                        target_slots.remove(slot)
-                        break
-            
-            return jsonify({"slots": final_slots_data, "type": "gifts"})
-
-        except Exception as e:
-            logger.error(f"Error generating gift board: {e}", exc_info=True)
-            return jsonify({"error": "Internal server error while generating gifts."}), 500
-
-    return jsonify({"error": "Invalid mode"}), 400
+    return jsonify({"slots": formatted_slots})
 
 @app.route('/api/plinko_drop_batch', methods=['POST'])
 def plinko_drop_batch():
-    auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
-    if not auth_data:
-        return jsonify({"error": "Authentication failed"}), 401
-    
-    user_id = auth_data['id']
-    data = flask_request.get_json()
-    
-    # --- Extract data from the request ---
-    bet_amount = Decimal(str(data.get('bet', 0)))
-    risk = data.get('risk', 'medium')
-    count = int(data.get('count', 1))
-    mode = data.get('mode', 'xs') # 'xs' or 'gifts'
-    board_gifts = data.get('board_gifts', None) # Sent by frontend in 'gifts' mode
-
-    if risk not in PLINKO_CONFIGS:
-        return jsonify({"error": "Invalid risk level"}), 400
-    if not (1 <= count <= 50):
-        return jsonify({"error": "Batch count must be between 1 and 50"}), 400
-
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.telegram_id == user_id).first()
-        total_cost = bet_amount * count
-        if not user or Decimal(str(user.balance)) < total_cost:
-            return jsonify({"error": "Insufficient balance for the entire batch"}), 400
-
-        # --- Always subtract the total cost of all bets upfront ---
-        user.balance = float(Decimal(str(user.balance)) - total_cost)
-        
-        results = []
-        total_star_winnings = Decimal('0') # Accumulator for 'xs' mode winnings
-        
-        config = PLINKO_CONFIGS[risk]
-        rows = config['rows']
-        CENTER_BIAS = 0.15
-
-        # --- Run the simulation for each drop in the batch ---
-        for _ in range(count):
-            # (Plinko simulation logic to get final_index and multiplier)
-            horizontal_offset = 0
-            for _ in range(rows):
-                if horizontal_offset > 0:
-                    direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
-                elif horizontal_offset < 0:
-                    direction = random.choices([-1, 1], weights=[0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
-                else:
-                    direction = random.choice([-1, 1])
-                horizontal_offset += direction
-            
-            center_index = len(config['multipliers']) // 2
-            final_index = max(0, min(len(config['multipliers']) - 1, center_index + horizontal_offset))
-            multiplier = Decimal(str(config['multipliers'][final_index]))
-            
-            # --- Handle winnings for this specific drop based on mode ---
-            if mode == 'gifts':
-                if not board_gifts or not isinstance(board_gifts, list) or len(board_gifts) <= final_index:
-                    db.rollback()
-                    return jsonify({"error": "Gift context was invalid for batch drop."}), 400
-
-                won_gift_data = board_gifts[final_index]
-                new_gift = UserGiftInventory(
-                    user_id=user_id,
-                    gift_id=str(won_gift_data.get('id', 'N/A')),
-                    gift_name=won_gift_data.get('name', 'Unknown Gift'),
-                    value_at_win=float(won_gift_data.get('value', 0)),
-                    imageUrl=won_gift_data.get('imageUrl', '')
-                )
-                db.add(new_gift)
-
-                # Append result for this drop to the main results array
-                results.append({
-                    "multiplier": float(multiplier),
-                    "winnings": 0, # Star winnings are 0
-                    "new_balance": user.balance, # The balance won't change per-drop in gifts mode
-                    "final_slot_index": final_index,
-                    "won_item": won_gift_data
-                })
-                # Log the drop with 0 Star winnings
-                db.add(PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=0))
-            
-            else: # --- 'xs' mode ---
-                winnings = bet_amount * multiplier
-                total_star_winnings += winnings # Add to accumulator
-
-                # Append result for this drop
-                results.append({
-                    "multiplier": float(multiplier),
-                    "winnings": float(winnings),
-                    # The 'new_balance' here is transient; final balance is calculated at the end
-                    "new_balance": float(Decimal(str(user.balance)) + total_star_winnings),
-                    "final_slot_index": final_index,
-                    "won_item": None
-                })
-                # Log the drop with its Star winnings
-                db.add(PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings)))
-
-        # --- After the loop, finalize the user's balance ---
-        if mode == 'xs':
-            user.balance = float(Decimal(str(user.balance)) + total_star_winnings)
-
-        # Commit all DB changes (user balance update, new inventory items, drop logs)
-        db.commit()
-
-        return jsonify({
-            "status": "success",
-            "results": results, # The array of individual outcomes
-            "new_balance": user.balance # The final, correct balance after the whole batch
-        })
-
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error in batch drop for user {user_id}: {e}")
-        return jsonify({"error": "An internal error occurred"}), 500
-    finally:
-        db.close()
+    return jsonify({"error": "This feature is currently disabled."}), 403
 
 @app.route('/api/initiate_ton_deposit', methods=['POST'])
 def initiate_ton_deposit():
