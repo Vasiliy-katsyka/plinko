@@ -23,7 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from pytoniq import LiteBalancer
 from portalsmp import giftsFloors
 from pyrogram import Client
-from pyrogram.raw.functions.messages import GetWebViewResult
+from pyrogram.raw.functions.messages import RequestWebView
 from pyrogram.raw.types import InputBotAppShortName
 import urllib.parse
 
@@ -1017,46 +1017,45 @@ async def get_fresh_portals_token():
     logger.info("Attempting to generate a new Portals auth token...")
 
     try:
-        # Initialize the client only if it hasn't been already.
-        # This prevents re-creating the client on every single call.
         if telegram_client is None or not telegram_client.is_connected:
             logger.info(f"Initializing Pyrogram client with session: {SESSION_PATH}")
             telegram_client = Client(
-                SESSION_PATH, # The name here should be the full path
+                SESSION_PATH,
                 api_id=int(TELEGRAM_API_ID),
                 api_hash=TELEGRAM_API_HASH
             )
         
         await telegram_client.start()
 
-        # Resolve the @portals bot to get its internal ID
         portals_bot = await telegram_client.resolve_peer("@portals")
 
-        # This is the modern way to get a web app URL in Pyrogram
-        # It simulates opening the mini app.
+        # --- THE FIX IS HERE ---
+        # Instead of GetWebViewResult, we use RequestWebView.
+        # We also send it from 'self' (our user) to the bot.
         web_view = await telegram_client.invoke(
-            GetWebViewResult(
+            RequestWebView(
                 peer=portals_bot,
-                app=InputBotAppShortName(bot_id=portals_bot, short_name="market"), # 'market' is the short name for the Portals app
-                start_param="", # No specific start parameter needed
-                platform="android", # Platform can be 'android', 'ios', etc.
-                url=""
+                bot=portals_bot,
+                platform="android",
+                # The URL here is a placeholder; the bot will override it with the correct one.
+                url="https://portals-market.com/",
+                from_bot_menu=False, # Set to True if it were a menu button
+                start_param=""
             )
         )
+        # --- END OF FIX ---
 
         await telegram_client.stop()
 
-        # The response URL contains the precious authData we need.
+        # The rest of the logic is the same, as `web_view.url` is still the correct attribute.
         raw_auth_data = web_view.url.split('tgWebAppData=')[1].split('&tgWebAppVersion=')[0]
         
-        # Format it correctly for the API ("tma" prefix and URL decoding)
         formatted_token = f"tma {urllib.parse.unquote(raw_auth_data)}"
         logger.info("Successfully generated a new Portals auth token.")
         return formatted_token
 
     except Exception as e:
         logger.error(f"FATAL: Failed to refresh Portals token: {e}", exc_info=True)
-        # Attempt to stop the client if it's running, to prevent hanging connections
         if telegram_client and telegram_client.is_connected:
             await telegram_client.stop()
         return None
