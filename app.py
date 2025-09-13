@@ -173,6 +173,7 @@ TELEGRAM_API_HASH = os.environ.get("TELEGRAM_API_HASH")
 # The full path to your session file on Render's persistent disk
 # This matches the Mount Path you set up in the Render dashboard.
 SESSION_PATH = "/var/data/sessions/my_portals_worker"
+TELEGRAM_SESSION_STRING = os.environ.get("TELEGRAM_SESSION_STRING")
 current_portals_token = None
 last_token_refresh_time = 0
 telegram_client = None # We will initialize this once, on first use.
@@ -1010,46 +1011,49 @@ async def check_blockchain_for_tx(comment):
 
 async def get_fresh_portals_token():
     """
-    Uses a Pyrogram client to log in with the session file and generate a fresh,
-    valid authData token for the Portals Marketplace API.
+    Uses a Pyrogram client initialized from a session STRING to generate a fresh
+    authData token for the Portals Marketplace API.
     """
     global telegram_client
-    logger.info("Attempting to generate a new Portals auth token...")
+    logger.info("Attempting to generate a new Portals auth token from session string...")
+
+    # --- CORE FIX: Initialize from string, not file ---
+    if not TELEGRAM_SESSION_STRING:
+        logger.error("FATAL: TELEGRAM_SESSION_STRING environment variable is not set.")
+        return None
 
     try:
-        if telegram_client is None or not telegram_client.is_connected:
-            logger.info(f"Initializing Pyrogram client with session: {SESSION_PATH}")
-            telegram_client = Client(
-                SESSION_PATH,
+        # We initialize the client IN-MEMORY. It will not try to read or write any files.
+        if telegram_client is None:
+             logger.info("Initializing in-memory Pyrogram client...")
+             telegram_client = Client(
+                "in_memory_session", # Name is arbitrary, not a filename
                 api_id=int(TELEGRAM_API_ID),
-                api_hash=TELEGRAM_API_HASH
+                api_hash=TELEGRAM_API_HASH,
+                session_string=TELEGRAM_SESSION_STRING,
+                in_memory=True # This is the crucial parameter
             )
         
-        await telegram_client.start()
+        if not telegram_client.is_connected:
+            await telegram_client.start()
 
         portals_bot = await telegram_client.resolve_peer("@portals")
-
-        # --- THE FIX IS HERE ---
-        # Instead of GetWebViewResult, we use RequestWebView.
-        # We also send it from 'self' (our user) to the bot.
+        
         web_view = await telegram_client.invoke(
             RequestWebView(
                 peer=portals_bot,
                 bot=portals_bot,
                 platform="android",
-                # The URL here is a placeholder; the bot will override it with the correct one.
                 url="https://portals-market.com/",
-                from_bot_menu=False, # Set to True if it were a menu button
+                from_bot_menu=False,
                 start_param=""
             )
         )
-        # --- END OF FIX ---
 
+        # We can stop the client after each use to conserve resources
         await telegram_client.stop()
 
-        # The rest of the logic is the same, as `web_view.url` is still the correct attribute.
         raw_auth_data = web_view.url.split('tgWebAppData=')[1].split('&tgWebAppVersion=')[0]
-        
         formatted_token = f"tma {urllib.parse.unquote(raw_auth_data)}"
         logger.info("Successfully generated a new Portals auth token.")
         return formatted_token
@@ -1059,6 +1063,7 @@ async def get_fresh_portals_token():
         if telegram_client and telegram_client.is_connected:
             await telegram_client.stop()
         return None
+
 
 @app.route('/api/create_stars_invoice', methods=['POST'])
 def create_stars_invoice():
