@@ -22,6 +22,10 @@ from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 from pytoniq import LiteBalancer
 from portalsmp import giftsFloors
+from pyrogram import Client
+from pyrogram.raw.functions.messages import GetWebViewResult
+from pyrogram.raw.types import InputBotAppShortName
+import urllib.parse
 
 # --- Configuration ---
 load_dotenv()
@@ -162,6 +166,16 @@ CACHE_DURATION_SECONDS = 900  # 15 minutes
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+TELEGRAM_API_ID = os.environ.get("TELEGRAM_API_ID")
+TELEGRAM_API_HASH = os.environ.get("TELEGRAM_API_HASH")
+
+# The full path to your session file on Render's persistent disk
+# This matches the Mount Path you set up in the Render dashboard.
+SESSION_PATH = "/var/data/sessions/my_portals_worker"
+current_portals_token = None
+last_token_refresh_time = 0
+telegram_client = None # We will initialize this once, on first use.
 
 if not DATABASE_URL:
     logger.error("DATABASE_URL is not set. Exiting.")
@@ -549,36 +563,77 @@ def plinko_drop():
 
 def get_gift_floor_prices():
     """
-    Fetches gift floor prices from the Portals API, using a cache.
+    Fetches gift floor prices from the Portals API. 
+    
+    This function manages two layers of caching:
+    1. Auth Token Cache: It ensures there is a valid, recently-refreshed
+       `current_portals_token` available, calling the async refresher if needed.
+       The token's lifetime is set to 1 hour.
+    2. Floor Price Cache: Once it has a valid token, it fetches floor prices
+       and caches them for a shorter duration (15 minutes) to reduce API spam.
+       
     Returns a dictionary of gift names to their floor price in Stars.
     """
+    global current_portals_token, last_token_refresh_time
+
     now = time.time()
-    if now - gift_floor_cache["last_updated"] > CACHE_DURATION_SECONDS:
-        logger.info("Cache expired. Fetching new gift floor prices from Portals API...")
+    TOKEN_EXPIRATION_SECONDS = 3600 # Refresh the authentication token every 1 hour
+
+    # --- Step 1: Check if the Authentication Token is valid ---
+    if not current_portals_token or (now - last_token_refresh_time > TOKEN_EXPIRATION_SECONDS):
+        logger.info("Portals auth token is missing or expired. Triggering refresh...")
+        
+        # Run the asynchronous token refresher function in a new event loop.
+        # This is the standard way to call async code from a sync context like a Flask route.
         try:
-            if not PORTALS_AUTH_TOKEN:
-                raise ValueError("PORTALS_AUTH_TOKEN is not set.")
-                
-            # The API returns floors in TON (as strings)
-            all_floors_ton = giftsFloors(authData=PORTALS_AUTH_TOKEN)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            new_token = loop.run_until_complete(get_fresh_portals_token())
+        finally:
+            loop.close()
+        
+        if new_token:
+            current_portals_token = new_token
+            last_token_refresh_time = now
+            logger.info("Auth token refresh successful.")
+        else:
+            logger.error("Could not obtain a new Portals token. Will proceed with old token if available, or fail.")
+            # If the refresh fails, we still might be able to use a stale token or old cache data.
+
+    # --- Step 2: Check if the Floor Price data cache is still valid ---
+    CACHE_DURATION_SECONDS = 900 # Cache the actual price data for 15 minutes
+    if "data" not in gift_floor_cache or (now - gift_floor_cache.get("last_updated", 0) > CACHE_DURATION_SECONDS):
+        logger.info("Floor price cache is expired. Fetching new prices from Portals API...")
+        
+        # Ensure we have an auth token to proceed
+        if not current_portals_token:
+            logger.error("Cannot fetch floor prices: No valid Portals Auth Token available.")
+            # Return the last known data to prevent the app from completely breaking
+            return gift_floor_cache.get("data", {})
+
+        try:
+            # Use the (potentially newly-refreshed) token to make the API call
+            all_floors_ton = giftsFloors(authData=current_portals_token)
             
             if not all_floors_ton:
-                 raise ConnectionError("Failed to retrieve data from Portals API.")
+                 # This can happen if the API is down, even with a valid token
+                 raise ConnectionError("Failed to retrieve data from Portals API. The response was empty.")
 
-            # Convert to Stars and update cache
-            floors_in_stars = {
-                name: float(price) * TON_TO_STARS_RATE
-                for name, price in all_floors_ton.items()
-            }
+            # Convert prices from TON to Stars and update the cache
+            floors_in_stars = {name: float(price) * TON_TO_STARS_RATE for name, price in all_floors_ton.items()}
             gift_floor_cache["data"] = floors_in_stars
             gift_floor_cache["last_updated"] = now
-            logger.info("Successfully updated gift floor price cache.")
+            logger.info(f"Successfully updated gift floor price cache with {len(floors_in_stars)} items.")
+
         except Exception as e:
-            logger.error(f"Error updating gift floor cache: {e}")
-            # Return the old data if the update fails to avoid breaking the app
-            return gift_floor_cache["data"]
+            # If the API call fails, log the error but return the old cached data
+            # This makes the app more resilient to temporary API outages.
+            logger.error(f"Error updating gift floor price cache: {e}")
+            return gift_floor_cache.get("data", {})
             
-    return gift_floor_cache["data"]
+    # --- Step 3: Return the cached data ---
+    # If the cache is still fresh, this is the only part that runs.
+    return gift_floor_cache.get("data", {})
 
 def build_master_gift_list():
     """
@@ -952,6 +1007,59 @@ async def check_blockchain_for_tx(comment):
         return None
     finally:
         if provider: await provider.close_all()
+
+async def get_fresh_portals_token():
+    """
+    Uses a Pyrogram client to log in with the session file and generate a fresh,
+    valid authData token for the Portals Marketplace API.
+    """
+    global telegram_client
+    logger.info("Attempting to generate a new Portals auth token...")
+
+    try:
+        # Initialize the client only if it hasn't been already.
+        # This prevents re-creating the client on every single call.
+        if telegram_client is None or not telegram_client.is_connected:
+            logger.info(f"Initializing Pyrogram client with session: {SESSION_PATH}")
+            telegram_client = Client(
+                SESSION_PATH, # The name here should be the full path
+                api_id=int(TELEGRAM_API_ID),
+                api_hash=TELEGRAM_API_HASH
+            )
+        
+        await telegram_client.start()
+
+        # Resolve the @portals bot to get its internal ID
+        portals_bot = await telegram_client.resolve_peer("@portals")
+
+        # This is the modern way to get a web app URL in Pyrogram
+        # It simulates opening the mini app.
+        web_view = await telegram_client.invoke(
+            GetWebViewResult(
+                peer=portals_bot,
+                app=InputBotAppShortName(bot_id=portals_bot, short_name="market"), # 'market' is the short name for the Portals app
+                start_param="", # No specific start parameter needed
+                platform="android", # Platform can be 'android', 'ios', etc.
+                url=""
+            )
+        )
+
+        await telegram_client.stop()
+
+        # The response URL contains the precious authData we need.
+        raw_auth_data = web_view.url.split('tgWebAppData=')[1].split('&tgWebAppVersion=')[0]
+        
+        # Format it correctly for the API ("tma" prefix and URL decoding)
+        formatted_token = f"tma {urllib.parse.unquote(raw_auth_data)}"
+        logger.info("Successfully generated a new Portals auth token.")
+        return formatted_token
+
+    except Exception as e:
+        logger.error(f"FATAL: Failed to refresh Portals token: {e}", exc_info=True)
+        # Attempt to stop the client if it's running, to prevent hanging connections
+        if telegram_client and telegram_client.is_connected:
+            await telegram_client.stop()
+        return None
 
 @app.route('/api/create_stars_invoice', methods=['POST'])
 def create_stars_invoice():
