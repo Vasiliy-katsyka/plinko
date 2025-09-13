@@ -468,53 +468,79 @@ def plinko_drop():
         if not user or Decimal(str(user.balance)) < bet_amount:
             return jsonify({"error": "Insufficient balance"}), 400
 
+        # 1. Subtract the bet amount. This is the ONLY balance change in this transaction.
         user.balance = float(Decimal(str(user.balance)) - bet_amount)
         
-        # Plinko simulation to find the winning slot index
+        # 2. CORRECTED & UNBIASED path simulation. This is the fix for the physics issue.
+        #    A simple random choice on each row creates a natural bell curve distribution.
         rows = config['rows']
-        CENTER_BIAS = 0.2
         horizontal_offset = 0
         for _ in range(rows):
-            direction = random.choice([-1, 1]) if horizontal_offset == 0 else random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS] if horizontal_offset > 0 else [0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
+            direction = random.choice([-1, 1]) # Purely random, fair path
             horizontal_offset += direction
+            
         center_index = len(config['slots']) // 2
         final_index = max(0, min(len(config['slots']) - 1, center_index + horizontal_offset))
         
-        # Determine winnings based on the winning slot's rule
+        # 3. Determine the prize and add it to inventory, NOT balance.
         prize_config = config['slots'][final_index]
-        winnings = Decimal('0')
+        won_item_details = None
         
+        # We need the full gift list to find the won item's details
+        master_gift_list = build_master_gift_list()
+        if not master_gift_list:
+            raise ConnectionError("Could not retrieve gift market data.")
+
         if isinstance(prize_config, str) and prize_config in EMOJI_GIFTS:
             # Won a fixed-value emoji gift
-            winnings = Decimal(str(EMOJI_GIFTS[prize_config]['value']))
+            gift_data = EMOJI_GIFTS[prize_config]
+            won_item_details = {
+                "id": gift_data["id"],
+                "name": prize_config,
+                "value": gift_data["value"],
+                "imageUrl": gift_data["imageUrl"]
+            }
         elif isinstance(prize_config, list):
-            # Won a dynamic gift slot, so find a gift in that range and award its value
-            master_gift_list = build_master_gift_list()
-            if not master_gift_list: # If API fails, award the average of the range as a fallback
-                winnings = Decimal(str(sum(prize_config) / 2))
-            else:
-                won_gift = select_gift_for_range(prize_config[0], prize_config[1], master_gift_list)
-                winnings = Decimal(str(won_gift.get('value', sum(prize_config) / 2)))
-
-        user.balance = float(Decimal(str(user.balance)) + winnings)
+            # Won a dynamic gift from a price range
+            won_gift_object = select_gift_for_range(prize_config[0], prize_config[1], master_gift_list)
+            won_item_details = {
+                "id": won_gift_object.get("id", "N/A"),
+                "name": won_gift_object.get("name", "Unknown Gift"),
+                "value": won_gift_object.get("value", 0),
+                "imageUrl": won_gift_object.get("imageUrl", "")
+            }
         
+        # Create the inventory record for the user
+        new_gift_in_inventory = UserGiftInventory(
+            user_id=user_id,
+            gift_id=str(won_item_details.get('id', 'N/A')),
+            gift_name=won_item_details.get('name'),
+            value_at_win=float(won_item_details.get('value')),
+            imageUrl=won_item_details.get('imageUrl')
+        )
+        db.add(new_gift_in_inventory)
+
+        # Log the drop, but with 0 "winnings" in Stars
         drop_log = PlinkoDrop(
             user_id=user_id, bet_amount=float(bet_amount), risk_level=f"mode_{bet_mode}",
-            multiplier_won=float(winnings / bet_amount if bet_amount > 0 else 0), winnings=float(winnings)
+            multiplier_won=0, winnings=0 # No Stars were won directly
         )
         db.add(drop_log)
+        
+        # Commit all changes: balance deduction and new inventory item
         db.commit()
 
+        # 4. Return the new response structure
         return jsonify({
             "status": "success",
-            "winnings": float(winnings),
-            "new_balance": user.balance,
+            "new_balance": user.balance, # The balance after the bet was subtracted
             "final_slot_index": final_index,
+            "won_item": won_item_details # The crucial part for the frontend
         })
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Error during Plinko drop for user {user_id}: {e}")
+        logger.error(f"Error during Plinko drop for user {user_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred"}), 500
     finally:
         db.close()
