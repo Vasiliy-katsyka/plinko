@@ -418,9 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePhysics() {
         if (activeChips.length === 0) {
             isDropping = false; setControlsDisabled(false);
-            apiRequest('/api/user_data', 'POST', {}).then(userData => {
-                currentUser.balance = userData.balance; updateBalanceUI();
-            }).catch(e => console.error("Final balance sync failed", e));
+            // No need for final balance sync here, as the balance is handled deterministically
             return;
         }
         for (let i = activeChips.length - 1; i >= 0; i--) {
@@ -464,18 +462,33 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(updatePhysics);
     }
     
+    // CORRECTED endDrop function
     function endDrop(chip) {
         chip.element.remove();
         const result = chip.serverResult;
-        currentUser.balance = result.new_balance;
-        updateBalanceUI();
+        
+        // Check if a gift was won from the new API response structure
+        if (result.won_item) {
+            // Show an alert to the user about their win
+            tg.showAlert(`Вы выиграли: ${result.won_item.name}!`);
+            
+            // Haptic feedback for a good win
+            if (result.won_item.value > 500) {
+                 tg.HapticFeedback.notificationOccurred('success');
+            }
+            
+            // The balance was already correctly debited. We do NOT add anything here.
+            // The new gift will appear in their inventory.
+            currentUser.balance = result.new_balance; // Sync with server's final balance
+            updateBalanceUI();
+
+        }
+
+        // Highlight the winning slot
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
         if (targetSlot) {
             targetSlot.classList.add('highlight');
             setTimeout(() => targetSlot.classList.remove('highlight'), 600);
-        }
-        if (result.winnings >= parseInt(currentBetMode, 10) * 10) {
-            tg.HapticFeedback.notificationOccurred('success');
         }
     }
     
@@ -485,7 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function getSlotColor(m) {
-        if (m >= 10) return 'var(--slot-high)';
+        if (m >= 5) return 'var(--slot-high)'; // Based on multiplier relative to bet
         if (m >= 2) return 'var(--slot-mid)';
         if (m > 0) return 'var(--slot-low)';
         return 'var(--slot-zero)';
@@ -522,7 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tg.HapticFeedback.notificationOccurred('success');
                 currentUser.balance = response.new_balance; updateBalanceUI();
                 button.closest('div').remove();
-                if (selectors.inventoryContainer.childElementCount === 1) { // Only placeholder is left
+                if (selectors.inventoryContainer.childElementCount <= 1) { // Only placeholder is left
                     selectors.inventoryPlaceholder.style.display = 'block';
                     selectors.inventoryPlaceholder.textContent = 'Инвентарь пуст.';
                 }
