@@ -520,22 +520,30 @@ def plinko_drop():
         )
         db.add(new_gift_in_inventory)
 
-        # Log the drop, but with 0 "winnings" in Stars
+        # --- NEW CODE HERE ---
+        # Flush the session to the database. This assigns the auto-incremented
+        # primary key (the ID) to our 'new_gift_in_inventory' object.
+        db.flush()
+
+        # Now, add the newly created inventory ID to our response object.
+        won_item_details["inventory_id"] = new_gift_in_inventory.id
+        # --- END OF NEW CODE ---
+        
+        # Log the drop
         drop_log = PlinkoDrop(
             user_id=user_id, bet_amount=float(bet_amount), risk_level=f"mode_{bet_mode}",
-            multiplier_won=0, winnings=0 # No Stars were won directly
+            multiplier_won=0, winnings=0
         )
         db.add(drop_log)
         
-        # Commit all changes: balance deduction and new inventory item
+        # Commit all changes together
         db.commit()
 
-        # 4. Return the new response structure
         return jsonify({
             "status": "success",
-            "new_balance": user.balance, # The balance after the bet was subtracted
+            "new_balance": user.balance,
             "final_slot_index": final_index,
-            "won_item": won_item_details # The crucial part for the frontend
+            "won_item": won_item_details # This now contains the crucial 'inventory_id'
         })
 
     except Exception as e:
