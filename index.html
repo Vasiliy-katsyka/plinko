@@ -319,6 +319,10 @@ document.addEventListener('DOMContentLoaded', () => {
             updateBalanceUI();
             updateProfileUI();
             setupBoard();
+            
+            // New: Pre-load the inventory data in the background
+            loadInventory(); 
+    
         } catch (error) {
             console.error("Failed to load user data:", error);
             tg.showAlert("Не удалось загрузить данные пользователя.");
@@ -347,6 +351,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function addGiftToInventoryUI(item) {
+        // This item object comes directly from the server response ('won_item')
+        // or from the inventory list.
+        const selectors = {
+            inventoryContainer: document.getElementById('inventory-container'),
+            inventoryPlaceholder: document.getElementById('inventory-placeholder')
+        };
+        
+        // Hide the 'Inventory is empty' placeholder
+        if (selectors.inventoryPlaceholder) {
+            selectors.inventoryPlaceholder.style.display = 'none';
+        }
+    
+        const itemEl = document.createElement('div');
+        itemEl.style.cssText = `background-color: var(--surface-color-2); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: space-between;`;
+        
+        // Use the inventory_id if available (from full load), or a temp ID for instant add.
+        const itemId = item.inventory_id || `new-${Date.now()}`;
+        
+        itemEl.innerHTML = `<img src="${item.imageUrl}" style="width: 60px; height: 60px; object-fit: contain;"><span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">${item.name}</span><button class="convert-btn main-button" data-id="${itemId}" data-value="${item.value}" style="width: 100%; font-size: 0.8rem; padding: 6px; margin-top: 8px; height: auto;">${Math.round(item.value)} ${STAR_ICON_HTML}</button>`;
+        
+        // Prepend to show the newest item first
+        selectors.inventoryContainer.prepend(itemEl);
+        
+        // Re-attach the event listener to the new button
+        const newButton = itemEl.querySelector('.convert-btn');
+        if (newButton) {
+            newButton.addEventListener('click', handleConvertGift);
+        }
+    }
+    
     function switchView(viewId) {
         if (freeDropTimerInterval) { clearInterval(freeDropTimerInterval); freeDropTimerInterval = null; }
         selectors.views.forEach(v => v.classList.toggle('active', v.id === viewId));
@@ -488,24 +523,20 @@ document.addEventListener('DOMContentLoaded', () => {
         chip.element.remove();
         const result = chip.serverResult;
         
-        // Check if a gift was won from the new API response structure
         if (result.won_item) {
-            // Show an alert to the user about their win
             tg.showAlert(`Вы выиграли: ${result.won_item.name}!`);
-            
-            // Haptic feedback for a good win
             if (result.won_item.value > 500) {
                  tg.HapticFeedback.notificationOccurred('success');
             }
             
-            // The balance was already correctly debited. We do NOT add anything here.
-            // The new gift will appear in their inventory.
-            currentUser.balance = result.new_balance; // Sync with server's final balance
+            currentUser.balance = result.new_balance;
             updateBalanceUI();
-
+    
+            // New: Instantly add the won gift to the inventory UI
+            addGiftToInventoryUI(result.won_item);
+    
         }
-
-        // Highlight the winning slot
+    
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
         if (targetSlot) {
             targetSlot.classList.add('highlight');
@@ -526,24 +557,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadInventory() {
-        selectors.inventoryContainer.innerHTML = '';
-        selectors.inventoryPlaceholder.style.display = 'block';
-        selectors.inventoryPlaceholder.textContent = 'Загрузка...';
+        const inventoryContainer = document.getElementById('inventory-container');
+        const inventoryPlaceholder = document.getElementById('inventory-placeholder');
+        inventoryContainer.innerHTML = ''; // Clear previous items
+        inventoryPlaceholder.style.display = 'block';
+        inventoryPlaceholder.textContent = 'Загрузка...';
         try {
             const data = await apiRequest('/api/get_inventory');
             if (data.inventory && data.inventory.length > 0) {
-                selectors.inventoryPlaceholder.style.display = 'none';
-                data.inventory.forEach(item => {
-                    const itemEl = document.createElement('div');
-                    itemEl.style.cssText = `background-color: var(--surface-color-2); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: space-between;`;
-                    itemEl.innerHTML = `<img src="${item.imageUrl}" style="width: 60px; height: 60px; object-fit: contain;"><span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">${item.name}</span><button class="convert-btn main-button" data-id="${item.inventory_id}" data-value="${item.value}" style="width: 100%; font-size: 0.8rem; padding: 6px; margin-top: 8px; height: auto;">${Math.round(item.value)} ${STAR_ICON_HTML}</button>`;
-                    selectors.inventoryContainer.appendChild(itemEl);
-                });
-                document.querySelectorAll('.convert-btn').forEach(btn => btn.addEventListener('click', handleConvertGift));
+                inventoryPlaceholder.style.display = 'none';
+                // Use the new helper function to build the UI
+                data.inventory.forEach(item => addGiftToInventoryUI(item));
             } else {
-                selectors.inventoryPlaceholder.textContent = 'Инвентарь пуст.';
+                inventoryPlaceholder.textContent = 'Инвентарь пуст.';
             }
-        } catch (e) { selectors.inventoryPlaceholder.textContent = 'Ошибка загрузки.'; }
+        } catch (e) { inventoryPlaceholder.textContent = 'Ошибка загрузки.'; }
     }
     
     async function handleConvertGift(event) {
