@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Плинко</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
@@ -143,9 +143,60 @@
             background: var(--button-primary-bg); color: white;
             box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
         }
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999; /* Make sure it's on top of everything */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(-45deg, #0d0f1a, #1a1e3a, #2c336b, #1a1e3a);
+            background-size: 400% 400%;
+            animation: gradient-animation 25s ease infinite;
+            color: var(--text-color);
+            transition: opacity 0.5s ease-out; /* For the smooth fade-out */
+        }
+        
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none; /* Prevents interaction during fade-out */
+        }
+        
+        #lottie-animation {
+            width: 150px;
+            height: 150px;
+            margin-bottom: -20px; /* Fine-tune spacing */
+        }
+        
+        #loading-screen h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, var(--highlight-secondary), var(--highlight-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+        }
+        
+        #loading-screen p {
+            margin-top: 15px;
+            font-size: 1rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
+    <div id="loading-screen">
+        <div id="lottie-animation"></div>
+        <h1>Plinko Gifts</h1>
+        <p id="loading-text">Инициализация...</p>
+    </div>
     <div class="background-orb" style="width: 400px; height: 400px; top: -150px; left: -150px; background-color: var(--highlight-primary); animation: float-orb 20s infinite ease-in-out;"></div>
     <div class="background-orb" style="width: 300px; height: 300px; bottom: -100px; right: -100px; background-color: var(--highlight-secondary); animation: float-orb 25s infinite ease-in-out reverse;"></div>
     <div id="app-container">
@@ -244,6 +295,50 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // --- START: Loading Screen Logic ---
+    const loadingScreen = document.getElementById('loading-screen');
+    const loadingText = document.getElementById('loading-text');
+
+    // Initialize Lottie Animation using the provided URL
+    lottie.loadAnimation({
+        container: document.getElementById('lottie-animation'),
+        renderer: 'svg',
+        loop: true,
+        autoplay: true,
+        path: 'https://cdn.changes.tg/gifts/models/Jolly%20Chimp/lottie/Toddler.json'
+    });
+
+    const funnyPhrases = [
+        "Загружаю подарочки...",
+        "Чищу баги в коде...",
+        "Корректирую ценники...",
+        "Подкручиваю вам удачу...",
+        "Проверяю подписки...",
+        "Разгоняю пиксели...",
+        "Настраиваю гравитацию шарика..."
+    ];
+    let phraseIndex = 0;
+    const textInterval = setInterval(() => {
+        phraseIndex = (phraseIndex + 1) % funnyPhrases.length;
+        loadingText.textContent = funnyPhrases[phraseIndex];
+    }, 2000); // Change text every 2 seconds
+
+    function hideLoadingScreen() {
+        clearInterval(textInterval);
+        loadingText.textContent = "Готово!";
+        
+        // Wait a moment so the user sees "Готово!"
+        setTimeout(() => {
+            loadingScreen.classList.add('hidden');
+            // After the fade-out animation finishes, remove it from the display
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 500); // This duration must match the CSS transition duration
+        }, 800); 
+    }
+    // --- END: Loading Screen Logic ---
+
+    const tg = window.Telegram.WebApp;
     const tg = window.Telegram.WebApp;
     const API_BASE_URL = 'https://plinko-4vm7.onrender.com';
     const STAR_ICON_HTML = `<img src="https://github.com/Vasiliy-katsyka/plinko/blob/main/star.png?raw=true" alt="Stars" style="height: 1em; vertical-align: -0.1em; margin-left: 4px;">`;
@@ -312,20 +407,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function initializeApp() {
-        tg.ready(); tg.expand();
         try {
+            tg.ready(); 
+            tg.expand();
+            
+            // This is where the app waits for the server
             const userData = await apiRequest('/api/user_data', 'POST', {});
+            
+            // Once data is loaded, we set everything up
             currentUser = userData;
             updateBalanceUI();
             updateProfileUI();
             setupBoard();
-            
-            // New: Pre-load the inventory data in the background
-            loadInventory(); 
-    
+            loadInventory(); // Pre-load inventory
         } catch (error) {
             console.error("Failed to load user data:", error);
             tg.showAlert("Не удалось загрузить данные пользователя.");
+        } finally {
+            // This 'finally' block ensures the loading screen is hidden
+            // whether the app loads successfully or fails.
+            hideLoadingScreen();
         }
     }
 
