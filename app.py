@@ -639,21 +639,25 @@ def convert_gift():
 
     db = SessionLocal()
     try:
-        # Find the gift in the user's inventory to ensure they own it
         gift_to_convert = db.query(UserGiftInventory).filter(UserGiftInventory.id == inventory_id, UserGiftInventory.user_id == user_id).first()
         if not gift_to_convert:
             return jsonify({"error": "Gift not found in your inventory."}), 404
 
         user = db.query(User).filter(User.telegram_id == user_id).first()
         
-        # Add the gift's value to the user's balance
-        user.balance += gift_to_convert.value_at_win
+        # --- CHANGE IS HERE ---
+        # New: Calculate the conversion value with a 20% bonus
+        conversion_value = gift_to_convert.value_at_win * 1.20
         
-        # Remove the gift from the inventory
+        # New: Add the boosted value to the user's balance
+        user.balance += conversion_value
+        
         db.delete(gift_to_convert)
         db.commit()
 
-        return jsonify({"status": "success", "message": "Gift converted to Stars!", "new_balance": user.balance})
+        # New: We can even notify the user of the bonus in the success message
+        success_message = f"Gift converted! You received {conversion_value:.2f} Stars (including a 20% bonus)."
+        return jsonify({"status": "success", "message": success_message, "new_balance": user.balance})
     except Exception as e:
         db.rollback()
         logger.error(f"Error converting gift: {e}")
@@ -717,14 +721,16 @@ def plinko_drop_batch():
     return jsonify({"error": "This feature is currently disabled."}), 403
 
 def select_gift_for_range(min_val, max_val, gift_list):
-    """Selects a random gift from the list that fits within the price range."""
+    """Selects a gift from the list that fits within the price range."""
     eligible_gifts = [g for g in gift_list if min_val <= g.get('value', 0) <= max_val]
     
     if eligible_gifts:
-        return random.choice(eligible_gifts)
+        # --- CHANGE IS HERE ---
+        # Instead of random.choice, sort by name to make the selection deterministic.
+        # This ensures get_board_slots and plinko_drop pick the same gift.
+        return sorted(eligible_gifts, key=lambda g: g['name'])[0]
     else:
-        # Fallback: if no gift is in the exact range, find the one with the closest value.
-        # This prevents errors if floor prices shift outside the defined ranges.
+        # Fallback remains the same
         mid_point = (min_val + max_val) / 2
         return min(gift_list, key=lambda g: abs(g.get('value', 0) - mid_point))
 
