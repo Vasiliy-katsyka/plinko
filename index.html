@@ -387,7 +387,6 @@ document.addEventListener('DOMContentLoaded', () => {
         selectors.views.forEach(v => v.classList.toggle('active', v.id === viewId));
         selectors.navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
         if (viewId === 'free-try-view') initFreeTryView();
-        if (viewId === 'profile-view') loadInventory();
     }
     
     async function updateBoardSlots() {
