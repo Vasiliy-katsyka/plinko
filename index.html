@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head> <!-- head -->
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Плинко</title>
@@ -76,8 +76,30 @@
         }
         .peg { width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%; position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3); transform: translate(-50%, -50%); z-index: 5;}
         .chip { position: absolute; background-color: var(--chip-color); border-radius: 50%; filter: drop-shadow(0 0 8px var(--chip-color)) drop-shadow(0 0 15px var(--chip-color)); visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s; }
-        #slots-container { display: flex; width: 100%; border-radius: 0 0 20px 20px; overflow: hidden; border: 1px solid var(--border-color); border-top: none; }
-        .slot { flex-grow: 1; height: 45px; display: flex; justify-content: center; align-items: center; font-weight: 600; font-size: clamp(0.6rem, 2.5vw, 0.8rem); color: white; transition: all 0.3s ease; }
+        #slots-container {
+            display: flex;
+            width: 100%;
+            border-radius: 0 0 20px 20px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            border-top: none;
+            /* New: Added a smooth gradient that reflects prize values (high on ends, low in middle) */
+            background: linear-gradient(to right, var(--slot-high), var(--slot-mid), var(--slot-low), var(--slot-zero), var(--slot-low), var(--slot-mid), var(--slot-high));
+        }
+        
+        .slot {
+            flex-grow: 1;
+            height: 45px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 600;
+            font-size: clamp(0.6rem, 2.5vw, 0.8rem);
+            color: white;
+            transition: all 0.3s ease;
+            /* New: Made individual slot backgrounds transparent to reveal the container's gradient */
+            background-color: transparent; 
+        }
         @keyframes highlight-win { 0% { transform: scale(1); } 50% { transform: scale(1.1); filter: brightness(2) drop-shadow(0 0 15px var(--highlight-secondary)); } 100% { transform: scale(1); } }
         @keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         .background-orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.4; z-index: -1; }
@@ -341,7 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const slot = document.createElement('div');
                 slot.className = 'slot';
                 slot.innerHTML = `<img src="${slotData.imageUrl}" title="${slotData.name} (~${Math.round(slotData.value)} Stars)" style="height: 80%; object-fit: contain;">`;
-                slot.style.backgroundColor = getSlotColor(slotData.multiplier);
                 selectors.slotsContainer.appendChild(slot);
             });
         } catch (error) {
