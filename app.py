@@ -10,6 +10,8 @@ from urllib.parse import unquote, parse_qs
 from datetime import datetime as dt, timezone, timedelta
 from decimal import Decimal
 import random
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 import pytz
 
 from flask import Flask, jsonify, request as flask_request, abort as flask_abort
@@ -18,6 +20,7 @@ from dotenv import load_dotenv
 import telebot
 from telebot import types
 from sqlalchemy import create_engine, Column, BigInteger, String, Float, ForeignKey, DateTime
+from sqlalchemy import inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
