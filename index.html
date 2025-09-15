@@ -237,11 +237,16 @@
                 <h2 id="profile-name">Пользователь</h2><p id="profile-username">@username</p>
                 <div class="balance-display"><label>Баланс</label><div id="profile-balance" class="value">0.00</div></div>
                 <h3 style="text-align:center; margin:15px 0 10px; font-size:1.1rem; color:var(--text-muted);">Пополнить баланс</h3>
-                <div style="display:flex; gap:10px; flex-direction: column;">
-                    <input type="number" id="deposit-amount-input" placeholder="Сумма в Stars" >
-                    <button id="topup-ton-btn" class="main-button">Пополнить через TON</button>
-                    <button id="topup-stars-btn" class="main-button" style="background: var(--button-secondary-bg);">Пополнить через Stars</button>
-                    <button id="topup-gifts-btn" class="main-button" style="background: var(--surface-color-2);">Пополнить подарками</button>
+                <input type="number" id="deposit-amount-input" placeholder="Сумма в Stars" style="margin-bottom: 15px;">
+                
+                <p style="text-align:center; margin:0 0 8px; font-size:0.9rem; color:var(--text-muted);">Пополнить с помощью:</p>
+                <div style="display:flex; gap:10px;">
+                    <!-- TON button is now hidden but kept in the code -->
+                    <button id="topup-ton-btn" class="main-button" style="display: none;">Пополнить через TON</button>
+                    
+                    <!-- Stars and Gifts buttons are in one row, smaller, with new text -->
+                    <button id="topup-stars-btn" class="main-button" style="background: var(--button-secondary-bg); flex-grow: 1; padding: 12px 5px; font-size: 1rem;">Звёзды</button>
+                    <button id="topup-gifts-btn" class="main-button" style="background: var(--surface-color-2); flex-grow: 1; padding: 12px 5px; font-size: 1rem;">Подарки</button>
                 </div>
                 <div id="inventory-section" style="margin-top: 25px;">
                 <h3 style="text-align:center; color:var(--text-muted);">Инвентарь Подарков</h3>
