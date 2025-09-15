@@ -10,6 +10,7 @@ from urllib.parse import unquote, parse_qs
 from datetime import datetime as dt, timezone, timedelta
 from decimal import Decimal
 import random
+import pytz
 
 from flask import Flask, jsonify, request as flask_request, abort as flask_abort
 from flask_cors import CORS
@@ -235,6 +236,12 @@ class UserGiftInventory(Base):
     value_at_win = Column(Float, nullable=False) # IMPORTANT: Store the Star value at the moment of winning
     imageUrl = Column(String, nullable=False)
     won_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class GiftFloorPrice(Base):
+    __tablename__ = "plinko_gift_floor_prices"
+    gift_name = Column(String, primary_key=True)  # The unique name, e.g., 'santahat'
+    price_in_stars = Column(Float, nullable=False)
+    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 Base.metadata.create_all(bind=engine)
 
@@ -555,36 +562,19 @@ def plinko_drop():
 
 def get_gift_floor_prices():
     """
-    Fetches gift floor prices from the Portals API, using a cache.
-    Returns a dictionary of gift names to their floor price in Stars.
+    Retrieves all gift floor prices directly from the database.
+    This is now the primary source of truth for game logic.
     """
-    now = time.time()
-    if now - gift_floor_cache["last_updated"] > CACHE_DURATION_SECONDS:
-        logger.info("Cache expired. Fetching new gift floor prices from Portals API...")
-        try:
-            if not PORTALS_AUTH_TOKEN:
-                raise ValueError("PORTALS_AUTH_TOKEN is not set.")
-                
-            # The API returns floors in TON (as strings)
-            all_floors_ton = giftsFloors(authData=PORTALS_AUTH_TOKEN)
-            
-            if not all_floors_ton:
-                 raise ConnectionError("Failed to retrieve data from Portals API.")
-
-            # Convert to Stars and update cache
-            floors_in_stars = {
-                name: float(price) * TON_TO_STARS_RATE
-                for name, price in all_floors_ton.items()
-            }
-            gift_floor_cache["data"] = floors_in_stars
-            gift_floor_cache["last_updated"] = now
-            logger.info("Successfully updated gift floor price cache.")
-        except Exception as e:
-            logger.error(f"Error updating gift floor cache: {e}")
-            # Return the old data if the update fails to avoid breaking the app
-            return gift_floor_cache["data"]
-            
-    return gift_floor_cache["data"]
+    db = SessionLocal()
+    try:
+        prices = db.query(GiftFloorPrice).all()
+        if not prices:
+            logger.warning("GiftFloorPrice table is empty. Game logic may be affected.")
+            return {}
+        # Return data in the same format as before { 'gift_name': price }
+        return {item.gift_name: item.price_in_stars for item in prices}
+    finally:
+        db.close()
 
 def build_master_gift_list():
     """
@@ -756,6 +746,45 @@ def initiate_ton_deposit():
     finally:
         db.close()
 
+def update_floor_prices_in_db():
+    """
+    Fetches latest floor prices from the Portals API and updates the database.
+    This function is intended to be run by a scheduler.
+    """
+    logger.info("Scheduler starting job: update_floor_prices_in_db")
+    db = SessionLocal()
+    try:
+        if not PORTALS_AUTH_TOKEN:
+            logger.warning("PORTALS_AUTH_TOKEN not set. Skipping floor price update.")
+            return
+
+        all_floors_ton = giftsFloors(authData=PORTALS_AUTH_TOKEN)
+        if not all_floors_ton:
+            logger.error("Failed to retrieve data from Portals API during scheduled update.")
+            return
+
+        floors_in_stars = {
+            name: float(price) * TON_TO_STARS_RATE
+            for name, price in all_floors_ton.items()
+        }
+
+        # "Upsert" logic: Update existing records or insert new ones
+        for name, price in floors_in_stars.items():
+            record = db.query(GiftFloorPrice).filter_by(gift_name=name).first()
+            if record:
+                record.price_in_stars = price  # Update
+            else:
+                db.add(GiftFloorPrice(gift_name=name, price_in_stars=price))  # Insert
+        
+        db.commit()
+        logger.info(f"Successfully updated/inserted {len(floors_in_stars)} gift floor prices in the database.")
+
+    except Exception as e:
+        logger.error(f"An error occurred during scheduled floor price update: {e}", exc_info=True)
+        db.rollback()
+    finally:
+        db.close()
+
 @app.route('/api/verify_ton_deposit', methods=['POST'])
 def verify_ton_deposit():
     auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
@@ -835,6 +864,21 @@ def create_stars_invoice():
     )
     return jsonify({"status": "success", "invoice_link": invoice_link})
 
+def initial_populate_prices():
+    """Checks if the price table is empty and populates it on app startup."""
+    with SessionLocal() as db:
+        try:
+            count = db.query(func.count(GiftFloorPrice.gift_name)).scalar()
+            if count == 0:
+                logger.info("GiftFloorPrice table is empty. Running initial population.")
+                # This direct call ensures the app has data to work with immediately.
+                update_floor_prices_in_db()
+            else:
+                logger.info(f"GiftFloorPrice table contains {count} records. Skipping initial population.")
+        except Exception as e:
+            # This can happen if the database/table doesn't exist yet.
+            logger.error(f"Error during initial price population check (might be normal on first run): {e}")
+
 def setup_telegram_webhook(flask_app):
     if not bot: return
     WEBHOOK_PATH = f'/{BOT_TOKEN}'
@@ -852,6 +896,19 @@ def setup_telegram_webhook(flask_app):
         logger.info(f"Webhook set to {FULL_WEBHOOK_URL}")
     except Exception as e:
         logger.error(f"Error setting webhook: {e}")
+
+scheduler = BackgroundScheduler(timezone=pytz.timezone('Europe/Moscow')) 
+scheduler.add_job(
+    func=update_floor_prices_in_db,
+    trigger=CronTrigger(hour=23, minute=0), # Runs daily at 23:00 (11 PM)
+    id='update_floor_prices_job',
+    name='Update gift floor prices from Portals API',
+    replace_existing=True
+)
+scheduler.start()
+logger.info("APScheduler started. Price update job is scheduled for 23:00 UTC+3.")
+
+initial_populate_prices()
 
 if BOT_TOKEN:
     setup_telegram_webhook(app)
