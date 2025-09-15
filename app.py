@@ -903,7 +903,7 @@ def setup_telegram_webhook(flask_app):
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Europe/Moscow')) 
 scheduler.add_job(
     func=update_floor_prices_in_db,
-    trigger=CronTrigger(hour=23, minute=05), # Runs daily at 23:00 (11 PM)
+    trigger=CronTrigger(hour=23, minute=8), # Runs daily at 23:00 (11 PM)
     id='update_floor_prices_job',
     name='Update gift floor prices from Portals API',
     replace_existing=True
