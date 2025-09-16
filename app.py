@@ -494,33 +494,10 @@ def plinko_drop():
         center_index = len(config['slots']) // 2
         final_index = max(0, min(len(config['slots']) - 1, center_index + horizontal_offset))
         
-        # --- PRIZE DETERMINATION (NEW LOGIC) ---
-        prize_config = config['slots'][final_index]
-        won_item_details = None
-        
-        master_gift_list = build_master_gift_list()
-        if not master_gift_list:
-            raise ConnectionError("Could not retrieve gift market data.")
-        
-        # Use the seed to make sure we pick the SAME gift that was displayed
-        seeded_random = random.Random(seed)
+        all_gifts_on_board = generate_board_gifts(bet_mode, seed)
 
-        if isinstance(prize_config, str) and prize_config in EMOJI_GIFTS:
-            gift_data = EMOJI_GIFTS[prize_config]
-            won_item_details = {"id": gift_data["id"], "name": prize_config, "value": gift_data["value"], "imageUrl": gift_data["imageUrl"]}
-        elif isinstance(prize_config, list):
-            # To get the correct symmetrical gift, we find its original index in the first half
-            original_index = final_index if final_index <= center_index else (len(config['slots']) - 1 - final_index)
-            original_prize_config = config['slots'][original_index]
-            
-            # Re-generate the "random" choice for that specific slot using the seed
-            min_val, max_val = original_prize_config
-            won_gift_object = select_gift_for_range(min_val, max_val, master_gift_list, seeded_random, target_slot_index=original_index)
-            
-            won_item_details = {
-                "id": won_gift_object.get("id", "N/A"), "name": won_gift_object.get("name", "Unknown Gift"),
-                "value": won_gift_object.get("value", 0), "imageUrl": won_gift_object.get("imageUrl", "")
-            }
+        # The winning gift is now a simple lookup from the list
+        won_item_details = all_gifts_on_board[final_index]
         
         # --- INVENTORY & LOGGING (Unchanged from here) ---
         new_gift_in_inventory = UserGiftInventory(user_id=user_id, gift_id=str(won_item_details.get('id', 'N/A')), gift_name=won_item_details.get('name'), value_at_win=float(won_item_details.get('value')), imageUrl=won_item_details.get('imageUrl'))
@@ -540,6 +517,43 @@ def plinko_drop():
         return jsonify({"error": "An internal server error occurred"}), 500
     finally:
         db.close()
+
+def generate_board_gifts(bet_mode, seed):
+    """
+    Generates the complete, symmetrical list of gift objects for a given bet mode and seed.
+    This is the single source of truth for both displaying and awarding prizes.
+    """
+    config = BET_MODES_CONFIG[bet_mode]
+    master_gift_list = build_master_gift_list()
+    if not master_gift_list:
+        raise ConnectionError("Could not retrieve gift market data.")
+
+    # Use the provided seed to initialize the random number generator for deterministic results
+    seeded_random = random.Random(seed)
+
+    # Determine gifts for the first half of the board
+    num_slots = len(config['slots'])
+    mid_point_index = (num_slots // 2)
+    first_half_gifts = []
+    
+    for i in range(mid_point_index + 1):
+        slot_config = config['slots'][i]
+        gift_object = None
+        if isinstance(slot_config, list):
+            min_val, max_val = slot_config
+            # This simplified call is now correct
+            gift_object = select_gift_for_range(min_val, max_val, master_gift_list, seeded_random)
+        elif isinstance(slot_config, str) and slot_config in EMOJI_GIFTS:
+            gift_data = EMOJI_GIFTS[slot_config]
+            gift_object = {
+                "id": gift_data["id"], "name": slot_config, 
+                "value": gift_data["value"], "imageUrl": gift_data["imageUrl"]
+            }
+        first_half_gifts.append(gift_object)
+    
+    # Construct the full symmetrical list by mirroring the first half
+    second_half_gifts = first_half_gifts[:-1][::-1]
+    return first_half_gifts + second_half_gifts
 
 def get_gift_floor_prices():
     """
@@ -655,60 +669,29 @@ def get_board_slots():
     
     data = flask_request.get_json()
     bet_mode = data.get('betMode', '200')
-    seed = data.get('seed', 'default_seed') # Get the seed from the request
+    seed = data.get('seed', 'default_seed')
 
     if bet_mode not in BET_MODES_CONFIG:
         return jsonify({"error": "Invalid bet mode"}), 400
     
-    config = BET_MODES_CONFIG[bet_mode]
-    bet_amount = config['bet_amount']
-    
     try:
-        master_gift_list = build_master_gift_list()
-        if not master_gift_list:
-            return jsonify({"error": "Could not load gift market data."}), 503
-
-        formatted_slots = []
-        # --- NEW LOGIC FOR SYMMETRY AND CONSISTENCY ---
-        # We only need to determine the gifts for the first half of the board
-        num_slots = len(config['slots'])
-        mid_point_index = (num_slots // 2)
-        first_half_gifts = []
-
-        # Use the provided seed to initialize the random number generator
-        # This makes the "random" choices predictable for a given seed
-        seeded_random = random.Random(seed)
-
-        for i in range(mid_point_index + 1): # Iterate up to and including the middle slot
-            slot_config = config['slots'][i]
-            gift_to_display = None
-            if isinstance(slot_config, list):
-                min_val, max_val = slot_config
-                gift_to_display = select_gift_for_range(min_val, max_val, master_gift_list, seeded_random) # Pass the seeded random generator
-            
-            elif isinstance(slot_config, str) and slot_config in EMOJI_GIFTS:
-                gift_data = EMOJI_GIFTS[slot_config]
-                gift_to_display = {
-                    "name": slot_config, "imageUrl": gift_data['imageUrl'], "value": gift_data['value']
-                }
-            first_half_gifts.append(gift_to_display)
+        # Generate the consistent list of gifts using our new helper function
+        all_gifts_on_board = generate_board_gifts(bet_mode, seed)
         
-        # Now, construct the full symmetrical list
-        second_half_gifts = first_half_gifts[:-1][::-1] # Reverse the first half (excluding the middle element)
-        all_gifts = first_half_gifts + second_half_gifts
-
-        # Format the final response
-        for gift_to_display in all_gifts:
-            if gift_to_display:
-                gift_value = gift_to_display.get('value', 0)
+        # Format the response for the frontend
+        formatted_slots = []
+        bet_amount = BET_MODES_CONFIG[bet_mode]['bet_amount']
+        for gift in all_gifts_on_board:
+            if gift:
+                gift_value = gift.get('value', 0)
                 formatted_slots.append({
-                    "name": gift_to_display.get('name', 'Unknown'),
-                    "imageUrl": gift_to_display.get('imageUrl', ''),
+                    "name": gift.get('name', 'Unknown'),
+                    "imageUrl": gift.get('imageUrl', ''),
                     "value": gift_value,
                     "multiplier": gift_value / bet_amount if bet_amount > 0 else 0
                 })
-
         return jsonify({"slots": formatted_slots})
+
     except Exception as e:
         logger.error(f"Error in get_board_slots: {e}", exc_info=True)
         return jsonify({"error": "Server error while preparing game board."}), 500
@@ -717,12 +700,9 @@ def get_board_slots():
 def plinko_drop_batch():
     return jsonify({"error": "This feature is currently disabled."}), 403
 
-def select_gift_for_range(min_val, max_val, gift_list, seeded_random_gen, target_slot_index=None):
+def select_gift_for_range(min_val, max_val, gift_list, seeded_random_gen):
     """
     Selects a gift for a price range using a seeded random generator for consistency.
-    - seeded_random_gen: An instance of random.Random initialized with a seed.
-    - target_slot_index: (For plinko_drop) The index of the slot we are calculating for.
-                         This allows us to "re-play" the random choices to find the correct gift.
     """
     eligible_gifts = [g for g in gift_list if min_val <= g.get('value', 0) <= max_val]
     
@@ -731,13 +711,7 @@ def select_gift_for_range(min_val, max_val, gift_list, seeded_random_gen, target
         mid_point = (min_val + max_val) / 2
         return min(gift_list, key=lambda g: abs(g.get('value', 0) - mid_point))
         
-    if target_slot_index is not None:
-        # This logic is for plinko_drop. We need to find what the gift *was* for this slot.
-        # We "fast-forward" the seeded random generator by making dummy choices for all previous slots.
-        for i in range(target_slot_index):
-            seeded_random_gen.choice(eligible_gifts) # This call advances the generator's state
-            
-    # Now, the next choice is the correct one for our target slot.
+    # Simply return the next random choice from the seeded generator
     return seeded_random_gen.choice(eligible_gifts)
 
 @app.route('/api/initiate_ton_deposit', methods=['POST'])
