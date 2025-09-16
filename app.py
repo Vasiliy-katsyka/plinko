@@ -603,7 +603,7 @@ def build_master_gift_list():
             })
 
     # Add emoji gifts (this part does not need to change)
-    for gift_name, gift_data in EMO_GIFTS.items():
+    for gift_name, gift_data in EMOJI_GIFTS.items():
         master_list.append({
             "id": gift_data["id"],
             "name": gift_name,
