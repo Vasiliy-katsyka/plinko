@@ -733,14 +733,22 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const result = await apiRequest('/api/claim_free_drop', 'POST', {});
             if (result.status === 'success') {
-                tg.showAlert(result.message);
+                // The alert was here. By removing it, the code will proceed immediately.
                 currentUser.last_free_drop_claim = result.new_claim_time;
                 switchView('main-game-view');
-                currentUser.balance = result.game_result.new_balance;
+                // The balance doesn't actually change, but we call this for consistency.
+                currentUser.balance = result.game_result.new_balance; 
                 updateBalanceUI();
+                // Start the animation with the result from the server.
                 animateSingleChip(result.game_result);
-            } else { tg.showAlert(result.message); selectors.claimFreeDropBtn.disabled = false; }
-        } catch (e) { selectors.claimFreeDropBtn.disabled = false; }
+            } else { 
+                // If there's an error (e.g., claimed too early), show an alert and re-enable the button.
+                tg.showAlert(result.message); 
+                selectors.claimFreeDropBtn.disabled = false; 
+            }
+        } catch (e) { 
+            selectors.claimFreeDropBtn.disabled = false; 
+        }
     }
 
     async function handleTopUpTON() {
