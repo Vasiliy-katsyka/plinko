@@ -350,6 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDropping = false;
     let activeChips = [];
     let chipIdCounter = 0;
+    let boardSeed = null;
     let pegs = [];
     let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
     let GRAVITY = 0.25, DAMPING = 0.55;
@@ -495,7 +496,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function updateBoardSlots() {
         try {
-            const response = await apiRequest('/api/get_board_slots', 'POST', { betMode: currentBetMode });
+            // Generate a new random seed for this board layout
+            boardSeed = Math.random().toString(36).substring(2); 
+    
+            // Send the current bet mode AND the new seed to the backend
+            const response = await apiRequest('/api/get_board_slots', 'POST', { 
+                betMode: currentBetMode,
+                seed: boardSeed // <--- SEND THE SEED
+            });
+    
             selectors.slotsContainer.innerHTML = '';
             response.slots.forEach(slotData => {
                 const slot = document.createElement('div');
@@ -516,7 +525,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser.balance -= betAmount;
         updateBalanceUI();
         try {
-            const result = await apiRequest('/api/plinko_drop', 'POST', { betMode: currentBetMode });
+            // Send the bet mode AND the EXISTING board seed
+            const result = await apiRequest('/api/plinko_drop', 'POST', { 
+                betMode: currentBetMode,
+                seed: boardSeed // <--- SEND THE SAME SEED
+            });
             animateSingleChip(result);
         } catch (error) {
             currentUser.balance += betAmount;
