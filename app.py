@@ -59,7 +59,7 @@ PLINKO_CONFIGS = {
 BET_MODES_CONFIG = {
     '200': {
         'bet_amount': 200,
-        'rows': 8, # Number of peg rows for the simulation
+        'rows': 8,
         'slots': [
             [600, 900], [350, 600], [200, 350], 'Ring', 'Bear', 'Ring', [200, 350], [350, 600], [600, 900]
         ]
@@ -68,14 +68,16 @@ BET_MODES_CONFIG = {
         'bet_amount': 1000,
         'rows': 8,
         'slots': [
-            [3500, 4000], [2000, 3500], [1000, 2000], [500, 1000], 'Ring', [500, 1000], [1000, 2000], [2000, 3500], [3500, 4000]
+            # --- UPDATED RANGES FOR 1000 STARS ---
+            [3000, 4000], [1500, 2000], [600, 1000], [400, 600], [200, 400], [400, 600], [600, 1000], [1500, 2000], [3000, 4000]
         ]
     },
     '4000': {
         'bet_amount': 4000,
         'rows': 8,
         'slots': [
-            [10000, 20000], [7000, 10000], [4000, 7000], [2000, 4000], [1000, 2000], [2000, 4000], [4000, 7000], [7000, 10000], [10000, 20000]
+            # --- UPDATED RANGES FOR 4000 STARS ---
+            [7000, 20000], [4500, 7000], [3000, 4500], [1500, 3000], [1000, 1500], [1500, 3000], [3000, 4500], [4500, 7000], [7000, 20000]
         ]
     }
 }
@@ -726,16 +728,17 @@ def plinko_drop_batch():
     return jsonify({"error": "This feature is currently disabled."}), 403
 
 def select_gift_for_range(min_val, max_val, gift_list):
-    """Selects a gift from the list that fits within the price range."""
+    """
+    Selects a RANDOM gift from the list that fits within the price range.
+    """
     eligible_gifts = [g for g in gift_list if min_val <= g.get('value', 0) <= max_val]
     
     if eligible_gifts:
         # --- CHANGE IS HERE ---
-        # Instead of random.choice, sort by name to make the selection deterministic.
-        # This ensures get_board_slots and plinko_drop pick the same gift.
-        return sorted(eligible_gifts, key=lambda g: g['name'])[0]
+        # Instead of sorting and picking the first, we now pick a random one.
+        return random.choice(eligible_gifts)
     else:
-        # Fallback remains the same
+        # Fallback remains the same: find the gift with the closest value.
         mid_point = (min_val + max_val) / 2
         return min(gift_list, key=lambda g: abs(g.get('value', 0) - mid_point))
 
