@@ -418,42 +418,46 @@ def claim_free_drop():
 
         user.last_free_drop_claim = now
         
-        risk = 'medium'
-        config = PLINKO_CONFIGS[risk]
-        rows = config['rows']
+        # --- NEW PROBABILITY LOGIC FOR FREE TRY ---
+        # 95% chance for a 'Bear', 5% for a 'Ring'
+        won_gift_name = random.choices(['Bear', 'Ring'], weights=[95, 5], k=1)[0]
         
-        CENTER_BIAS = 0.2
-        horizontal_offset = 0
-        for _ in range(rows):
-            if horizontal_offset > 0:
-                direction = random.choices([-1, 1], weights=[0.5 + CENTER_BIAS, 0.5 - CENTER_BIAS], k=1)[0]
-            elif horizontal_offset < 0:
-                direction = random.choices([-1, 1], weights=[0.5 - CENTER_BIAS, 0.5 + CENTER_BIAS], k=1)[0]
-            else:
-                direction = random.choice([-1, 1])
-            horizontal_offset += direction
+        # Get gift details from the EMOJI_GIFTS dictionary
+        gift_data = EMOJI_GIFTS[won_gift_name]
+        won_item_details = {
+            "id": gift_data["id"],
+            "name": won_gift_name,
+            "value": gift_data["value"],
+            "imageUrl": gift_data["imageUrl"]
+        }
+        
+        # Add the won gift to the user's inventory
+        new_gift_in_inventory = UserGiftInventory(
+            user_id=user_id,
+            gift_id=str(won_item_details.get('id')),
+            gift_name=won_item_details.get('name'),
+            value_at_win=float(won_item_details.get('value')),
+            imageUrl=won_item_details.get('imageUrl')
+        )
+        db.add(new_gift_in_inventory)
+        db.flush() # Get the new ID
+        won_item_details["inventory_id"] = new_gift_in_inventory.id
 
-        center_index = len(config['multipliers']) // 2
-        final_index = max(0, min(len(config['multipliers']) - 1, center_index + horizontal_offset))
-        
-        multiplier = Decimal(str(config['multipliers'][final_index]))
-        winnings = FREE_DROP_BET_AMOUNT * multiplier # Winnings are in Stars
-        
-        user.balance = float(Decimal(str(user.balance)) + winnings)
-        
-        drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(FREE_DROP_BET_AMOUNT), risk_level=risk, multiplier_won=float(multiplier), winnings=float(winnings))
+        # Log this as a free drop (bet amount is 0)
+        drop_log = PlinkoDrop(user_id=user_id, bet_amount=0, risk_level='free_try', multiplier_won=0, winnings=0)
         db.add(drop_log)
         db.commit()
         
+        # The response structure now mimics the main game drop so the frontend can animate it
         return jsonify({
             "status": "success", 
-            "message": "Бесплатный бросок получен!", 
+            "message": f"Бесплатный бросок получен! Вы выиграли: {won_gift_name}!", 
             "new_claim_time": now.isoformat(),
             "game_result": {
-                "multiplier": float(multiplier),
-                "winnings": float(winnings), # Winnings in Stars
-                "new_balance": user.balance, # Balance in Stars
-                "final_slot_index": final_index
+                "status": "success",
+                "new_balance": user.balance, # Balance is unchanged
+                "final_slot_index": 4, # Animate to the middle slot
+                "won_item": won_item_details
             }
         })
     finally:
@@ -467,7 +471,7 @@ def plinko_drop():
     user_id = auth_data['id']
     data = flask_request.get_json()
     bet_mode = data.get('betMode')
-    seed = data.get('seed') # Get the seed from the request
+    seed = data.get('seed')
 
     if not seed:
         return jsonify({"error": "Missing board seed for drop"}), 400
@@ -485,31 +489,72 @@ def plinko_drop():
 
         user.balance = float(Decimal(str(user.balance)) - bet_amount)
         
-        # --- PHYSICS SIMULATION (Unchanged) ---
-        rows = config['rows']
-        horizontal_offset = 0
-        for _ in range(rows):
-            direction = random.choice([-1, 1])
-            horizontal_offset += direction
-        center_index = len(config['slots']) // 2
-        final_index = max(0, min(len(config['slots']) - 1, center_index + horizontal_offset))
-        
-        all_gifts_on_board = generate_board_gifts(bet_mode, seed)
+        # --- NEW PROBABILITY LOGIC ---
+        # The user's requested probabilities (85, 18, 2) sum to 105.
+        # We'll use them as weights to create a correct distribution.
+        outcome_category = random.choices(
+            ['lose', 'breakeven', 'win'], 
+            weights=[85, 18, 2], 
+            k=1
+        )[0]
 
-        # The winning gift is now a simple lookup from the list
-        won_item_details = all_gifts_on_board[final_index]
+        # Generate the consistent board layout based on the seed
+        all_gifts_on_board = generate_board_gifts(bet_mode, seed)
         
-        # --- INVENTORY & LOGGING (Unchanged from here) ---
-        new_gift_in_inventory = UserGiftInventory(user_id=user_id, gift_id=str(won_item_details.get('id', 'N/A')), gift_name=won_item_details.get('name'), value_at_win=float(won_item_details.get('value')), imageUrl=won_item_details.get('imageUrl'))
+        # Filter gifts based on the determined outcome
+        lose_gifts = [g for g in all_gifts_on_board if g['value'] < bet_amount]
+        # Allow a small tolerance for breakeven, e.g., for values like 999.9 vs 1000
+        breakeven_gifts = [g for g in all_gifts_on_board if abs(g['value'] - float(bet_amount)) < 1.0]
+        win_gifts = [g for g in all_gifts_on_board if g['value'] > bet_amount]
+
+        eligible_gifts = []
+        if outcome_category == 'lose' and lose_gifts:
+            eligible_gifts = lose_gifts
+        elif outcome_category == 'breakeven' and breakeven_gifts:
+            eligible_gifts = breakeven_gifts
+        elif outcome_category == 'win' and win_gifts:
+            eligible_gifts = win_gifts
+
+        # Fallback mechanism in case a category has no eligible gifts on the board
+        if not eligible_gifts:
+            if outcome_category == 'win': # If win is chosen but no win gifts, fallback to the best possible
+                eligible_gifts = [max(all_gifts_on_board, key=lambda g: g['value'])]
+            elif outcome_category == 'breakeven': # Fallback to closest value to bet
+                eligible_gifts = [min(all_gifts_on_board, key=lambda g: abs(g['value'] - float(bet_amount)))]
+            else: # Fallback for 'lose'
+                eligible_gifts = lose_gifts if lose_gifts else [min(all_gifts_on_board, key=lambda g: g['value'])]
+
+        # Select the final winning item
+        won_item_details = random.choice(eligible_gifts)
+
+        # Find all possible indices for the winning item on the board to ensure animation is correct
+        possible_indices = [i for i, gift in enumerate(all_gifts_on_board) if gift['id'] == won_item_details['id']]
+        final_index = random.choice(possible_indices)
+        # --- END OF NEW LOGIC ---
+
+        # Add the won item to the user's inventory
+        new_gift_in_inventory = UserGiftInventory(
+            user_id=user_id, 
+            gift_id=str(won_item_details.get('id', 'N/A')), 
+            gift_name=won_item_details.get('name'), 
+            value_at_win=float(won_item_details.get('value')), 
+            imageUrl=won_item_details.get('imageUrl')
+        )
         db.add(new_gift_in_inventory)
-        db.flush()
+        db.flush() # Flush to get the new inventory ID
         won_item_details["inventory_id"] = new_gift_in_inventory.id
         
+        # Log the drop
         drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=f"mode_{bet_mode}", multiplier_won=0, winnings=0)
         db.add(drop_log)
         db.commit()
 
-        return jsonify({"status": "success", "new_balance": user.balance, "final_slot_index": final_index, "won_item": won_item_details})
+        return jsonify({
+            "status": "success", 
+            "new_balance": user.balance, 
+            "final_slot_index": final_index, 
+            "won_item": won_item_details
+        })
 
     except Exception as e:
         db.rollback()
