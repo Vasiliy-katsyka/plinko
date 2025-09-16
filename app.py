@@ -26,12 +26,14 @@ from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 from pytoniq import LiteBalancer
 from portalsmp import giftsFloors
+from werkzeug.exceptions import Unauthorized
 
 # --- Configuration ---
 load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 PORTALS_AUTH_TOKEN = os.environ.get("PORTALS_AUTH_TOKEN")
+GIFT_DEPOSIT_API_KEY = os.environ.get("GIFT_DEPOSIT_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://plinko-4vm7.onrender.com")
 DEPOSIT_WALLET_ADDRESS = os.environ.get("DEPOSIT_WALLET_ADDRESS")
@@ -669,6 +671,74 @@ def get_inventory():
     finally:
         db.close()
 
+@app.route('/api/public/deposit_gift', methods=['POST'])
+def public_deposit_gift():
+    """
+    Public endpoint for the userbot to call.
+    Receives a gift, finds its value, and adds it to a user's balance.
+    """
+    # 1. Secure the endpoint with the API key
+    received_key = flask_request.headers.get('X-API-Key')
+    if not GIFT_DEPOSIT_API_KEY or received_key != GIFT_DEPOSIT_API_KEY:
+        logger.warning("Unauthorized attempt to access deposit_gift endpoint.")
+        raise Unauthorized("Invalid API Key")
+
+    # 2. Get data from the request
+    data = flask_request.get_json()
+    if not data or 'telegram_id' not in data or 'gift_name' not in data:
+        return jsonify({"status": "error", "message": "Missing telegram_id or gift_name"}), 400
+
+    telegram_id = data['telegram_id']
+    gift_title = data['gift_name'] # e.g., "Jolly Chimp"
+    
+    # 3. Normalize the gift name to match our database keys
+    # Keys in our price DB are like 'jollychimp', 'santahat'
+    normalized_gift_name = gift_title.lower().replace(" ", "").replace("'", "")
+
+    db = SessionLocal()
+    try:
+        # 4. Find the user
+        user = db.query(User).filter(User.telegram_id == telegram_id).first()
+        if not user:
+            logger.warning(f"Gift deposit attempt for non-existent user: {telegram_id}")
+            return jsonify({"status": "error", "message": f"User with ID {telegram_id} not found."}), 404
+
+        # 5. Get the gift's value in Stars from our database
+        floor_prices = get_gift_floor_prices()
+        if normalized_gift_name not in floor_prices:
+            logger.error(f"Received unknown gift '{gift_title}' (normalized: '{normalized_gift_name}') from user {telegram_id}")
+            return jsonify({"status": "error", "message": f"Gift '{gift_title}' is not recognized or has no price."}), 400
+        
+        gift_value_in_stars = floor_prices[normalized_gift_name]
+
+        # 6. Update user balance and log the deposit
+        user.balance += gift_value_in_stars
+        
+        new_deposit = Deposit(
+            user_id=user.telegram_id, 
+            amount=gift_value_in_stars, 
+            deposit_type='GIFT_TRANSFER', 
+            status='completed'
+        )
+        db.add(new_deposit)
+        db.commit()
+
+        logger.info(f"Successfully processed gift '{gift_title}' for user {telegram_id}. Added {gift_value_in_stars} Stars. New balance: {user.balance}")
+
+        # 7. Return success response
+        return jsonify({
+            "status": "success",
+            "message": f"Successfully credited {gift_value_in_stars:.2f} Stars for the '{gift_title}' gift.",
+            "new_balance": user.balance,
+            "credited_amount": gift_value_in_stars
+        })
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error processing gift deposit for user {telegram_id}: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": "An internal server error occurred."}), 500
+    finally:
+        db.close()
 
 # POST endpoint to convert a gift to Stars
 @app.route('/api/convert_gift', methods=['POST'])
