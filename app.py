@@ -467,7 +467,7 @@ def plinko_drop():
     user_id = auth_data['id']
     data = flask_request.get_json()
     bet_mode = data.get('betMode')
-    seed = data.get('seed') # Get the seed from the request
+    seed = data.get('seed')
 
     if not seed:
         return jsonify({"error": "Missing board seed for drop"}), 400
@@ -485,31 +485,46 @@ def plinko_drop():
 
         user.balance = float(Decimal(str(user.balance)) - bet_amount)
         
-        # --- PHYSICS SIMULATION (Unchanged) ---
+        # --- NEW: PATH GENERATION LOGIC ---
         rows = config['rows']
+        path = [] # This will store the sequence of moves, e.g., ['L', 'R', 'R', 'L', ...]
         horizontal_offset = 0
         for _ in range(rows):
             direction = random.choice([-1, 1])
+            path.append('L' if direction == -1 else 'R') # Record the move
             horizontal_offset += direction
+            
         center_index = len(config['slots']) // 2
         final_index = max(0, min(len(config['slots']) - 1, center_index + horizontal_offset))
         
+        # --- PRIZE DETERMINATION (Stays the same) ---
         all_gifts_on_board = generate_board_gifts(bet_mode, seed)
-
-        # The winning gift is now a simple lookup from the list
         won_item_details = all_gifts_on_board[final_index]
         
-        # --- INVENTORY & LOGGING (Unchanged from here) ---
-        new_gift_in_inventory = UserGiftInventory(user_id=user_id, gift_id=str(won_item_details.get('id', 'N/A')), gift_name=won_item_details.get('name'), value_at_win=float(won_item_details.get('value')), imageUrl=won_item_details.get('imageUrl'))
+        # --- INVENTORY & LOGGING (Stays the same) ---
+        new_gift_in_inventory = UserGiftInventory(
+            user_id=user_id, gift_id=str(won_item_details.get('id', 'N/A')),
+            gift_name=won_item_details.get('name'), value_at_win=float(won_item_details.get('value')),
+            imageUrl=won_item_details.get('imageUrl')
+        )
         db.add(new_gift_in_inventory)
         db.flush()
         won_item_details["inventory_id"] = new_gift_in_inventory.id
         
-        drop_log = PlinkoDrop(user_id=user_id, bet_amount=float(bet_amount), risk_level=f"mode_{bet_mode}", multiplier_won=0, winnings=0)
+        drop_log = PlinkoDrop(
+            user_id=user_id, bet_amount=float(bet_amount), risk_level=f"mode_{bet_mode}",
+            multiplier_won=0, winnings=0
+        )
         db.add(drop_log)
         db.commit()
 
-        return jsonify({"status": "success", "new_balance": user.balance, "final_slot_index": final_index, "won_item": won_item_details})
+        return jsonify({
+            "status": "success",
+            "new_balance": user.balance,
+            "final_slot_index": final_index,
+            "won_item": won_item_details,
+            "path": path  # <-- SEND THE GENERATED PATH TO THE FRONTEND
+        })
 
     except Exception as e:
         db.rollback()
