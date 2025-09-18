@@ -614,22 +614,30 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const finalDescentStartY = BOARD_HEIGHT * 0.88; // The Y-coordinate where Phase 2 begins
+        // --- Tuned Constants for a more stable simulation ---
+        const finalDescentStartY = BOARD_HEIGHT * 0.88;
+        const maxHorizontalVelocity = 4; // Speed limit for X-axis
+        const maxVerticalVelocity = 10;   // Speed limit for Y-axis
+        const maxNudgeForce = 0.07;       // The maximum strength of the guiding push
 
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
 
-            // Apply universal forces first
+            // 1. Apply Gravity
             chip.vy += GRAVITY;
 
-            // --- HYBRID APPROACH ---
+            // 2. Main Physics Logic (Hybrid Approach)
             if (chip.y < finalDescentStartY) {
-                // --- PHASE 1: Gentle Nudge (While among the pegs) ---
+                // --- PHASE 1: Gentle Nudge (among the pegs) ---
 
-                // Apply the gentle nudge towards the targetX
-                const nudgeForceFactor = 0.0015; // Slightly increased for better guidance
+                // Calculate the nudge force
+                const nudgeForceFactor = 0.002;
                 const nudgeStrength = (chip.y / BOARD_HEIGHT) * nudgeForceFactor;
-                const forceX = (chip.targetX - chip.x) * nudgeStrength;
+                let forceX = (chip.targetX - chip.x) * nudgeStrength;
+
+                // **CRITICAL FIX 1: Cap the nudge force**
+                // This prevents the "shove" that causes clipping through pegs.
+                forceX = Math.max(-maxNudgeForce, Math.min(maxNudgeForce, forceX));
                 chip.vx += forceX;
 
                 // Handle peg collisions
@@ -648,17 +656,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
             } else {
-                // --- PHASE 2: Smooth Landing (After clearing the pegs) ---
+                // --- PHASE 2: Smooth Landing (after clearing pegs) ---
 
-                // Smoothly dampen horizontal velocity to zero
-                chip.vx *= 0.9;
+                // Smoothly dampen horizontal velocity
+                chip.vx *= 0.85;
 
-                // Smoothly interpolate the x position to the exact center of the target slot
-                // This moves it 10% of the remaining distance each frame, creating a smooth ease-in.
-                chip.x += (chip.targetX - chip.x) * 0.1;
+                // **CRITICAL FIX 2: Stronger and smoother landing correction**
+                // This ensures a perfect landing in the center of the slot.
+                chip.x += (chip.targetX - chip.x) * 0.2;
             }
             
-            // --- Universal Updates (apply in both phases) ---
+            // 3. Universal Updates
+            
+            // **CRITICAL FIX 3: Cap the overall velocity**
+            // This is the safety net that guarantees no "tunneling" through pegs.
+            chip.vx = Math.max(-maxHorizontalVelocity, Math.min(maxHorizontalVelocity, chip.vx));
+            chip.vy = Math.max(-maxVerticalVelocity, Math.min(maxVerticalVelocity, chip.vy));
+
+            // Update position based on final velocity for this frame
             chip.x += chip.vx;
             chip.y += chip.vy;
 
