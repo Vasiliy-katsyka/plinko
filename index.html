@@ -544,10 +544,31 @@ document.addEventListener('DOMContentLoaded', () => {
         chipEl.className = 'chip';
         chipEl.style.width = `${CHIP_RADIUS * 2}px`;
         chipEl.style.height = `${CHIP_RADIUS * 2}px`;
+
+        // --- NEW: Calculate targetX immediately ---
+        let targetX;
+        const finalSlotIndex = resultFromServer.final_slot_index;
+        const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
+        if (targetSlot) {
+            const slotRect = targetSlot.getBoundingClientRect();
+            const boardRect = selectors.board.getBoundingClientRect();
+            targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
+        } else {
+            targetX = BOARD_WIDTH / 2; // Fallback to center if slot not found
+        }
+        // --- END NEW ---
+
         const newChip = {
-            id: chipId, x: BOARD_WIDTH / 2, y: CHIP_RADIUS, vx: (Math.random() - 0.5) * 4,
-            vy: 0, element: chipEl, serverResult: resultFromServer, isGuided: false, targetX: undefined
+            id: chipId, 
+            x: BOARD_WIDTH / 2, 
+            y: CHIP_RADIUS, 
+            vx: (Math.random() - 0.5) * 4,
+            vy: 0, 
+            element: chipEl, 
+            serverResult: resultFromServer,
+            targetX: targetX // Add the pre-calculated targetX to the chip object
         };
+
         chipEl.style.transform = `translate(${newChip.x - CHIP_RADIUS}px, ${newChip.y - CHIP_RADIUS}px)`;
         chipEl.style.visibility = 'visible';
         selectors.board.appendChild(chipEl);
@@ -590,46 +611,55 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePhysics() {
         if (activeChips.length === 0) {
             isDropping = false; setControlsDisabled(false);
-            // No need for final balance sync here, as the balance is handled deterministically
             return;
         }
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
-            const takeoverHeight = BOARD_HEIGHT * 0.88;
-            if (chip.y > takeoverHeight && !chip.isGuided) {
-                chip.isGuided = true;
-                const finalSlotIndex = chip.serverResult.final_slot_index;
-                const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
-                if (targetSlot) {
-                    const slotRect = targetSlot.getBoundingClientRect();
-                    const boardRect = selectors.board.getBoundingClientRect();
-                    chip.targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
-                }
-            }
-            if (chip.isGuided && chip.targetX !== undefined) {
-                const forceX = (chip.targetX - chip.x) * 0.01;
-                chip.vx += forceX; chip.vx *= 0.95; chip.vy += GRAVITY;
-            } else { chip.vy += GRAVITY; }
-            chip.x += chip.vx; chip.y += chip.vy;
+
+            // --- REPLACEMENT: "Gentle Nudge" Physics from the start ---
+            // 1. Apply gravity
+            chip.vy += GRAVITY;
+
+            // 2. Apply the gentle nudge towards the targetX
+            // The force is very weak at the top and gets slightly stronger as it falls.
+            const nudgeForceFactor = 0.001; // Tunable value: smaller is more "random", larger is more "guided".
+            const nudgeStrength = (chip.y / BOARD_HEIGHT) * nudgeForceFactor;
+            const forceX = (chip.targetX - chip.x) * nudgeStrength;
+            chip.vx += forceX;
+
+            // 3. Update position
+            chip.x += chip.vx;
+            chip.y += chip.vy;
+
+            // 4. Handle wall collisions
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
-                chip.vx *= -DAMPING; chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
+                chip.vx *= -DAMPING;
+                chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
-            if (!chip.isGuided) {
-                pegs.forEach(peg => {
-                    const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx+dy*dy);
-                    if (dist < CHIP_RADIUS + PEG_RADIUS) {
-                        const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
-                        chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
-                        const normalX = dx / dist, normalY = dy / dist;
-                        const dot = chip.vx * normalX + chip.vy * normalY;
-                        chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
-                        chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
-                        chip.vx += (Math.random() - 0.5) * 0.25;
-                    }
-                });
-            }
+            
+            // 5. Handle peg collisions (this logic remains the same)
+            pegs.forEach(peg => {
+                const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx+dy*dy);
+                if (dist < CHIP_RADIUS + PEG_RADIUS) {
+                    const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
+                    chip.x += Math.cos(angle) * overlap;
+                    chip.y += Math.sin(angle) * overlap;
+                    const normalX = dx / dist, normalY = dy / dist;
+                    const dot = chip.vx * normalX + chip.vy * normalY;
+                    chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
+                    chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                    chip.vx += (Math.random() - 0.5) * 0.25; // Keep a little randomness on impact
+                }
+            });
+            // --- END REPLACEMENT ---
+
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
-            if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) { endDrop(chip); activeChips.splice(i, 1); }
+
+            // Check if chip has fallen out of the bottom
+            if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
+                endDrop(chip);
+                activeChips.splice(i, 1);
+            }
         }
         requestAnimationFrame(updatePhysics);
     }
