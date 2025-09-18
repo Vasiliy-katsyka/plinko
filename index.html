@@ -613,49 +613,65 @@ document.addEventListener('DOMContentLoaded', () => {
             isDropping = false; setControlsDisabled(false);
             return;
         }
+
+        const finalDescentStartY = BOARD_HEIGHT * 0.88; // The Y-coordinate where Phase 2 begins
+
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
 
-            // --- REPLACEMENT: "Gentle Nudge" Physics from the start ---
-            // 1. Apply gravity
+            // Apply universal forces first
             chip.vy += GRAVITY;
 
-            // 2. Apply the gentle nudge towards the targetX
-            // The force is very weak at the top and gets slightly stronger as it falls.
-            const nudgeForceFactor = 0.001; // Tunable value: smaller is more "random", larger is more "guided".
-            const nudgeStrength = (chip.y / BOARD_HEIGHT) * nudgeForceFactor;
-            const forceX = (chip.targetX - chip.x) * nudgeStrength;
-            chip.vx += forceX;
+            // --- HYBRID APPROACH ---
+            if (chip.y < finalDescentStartY) {
+                // --- PHASE 1: Gentle Nudge (While among the pegs) ---
 
-            // 3. Update position
+                // Apply the gentle nudge towards the targetX
+                const nudgeForceFactor = 0.0015; // Slightly increased for better guidance
+                const nudgeStrength = (chip.y / BOARD_HEIGHT) * nudgeForceFactor;
+                const forceX = (chip.targetX - chip.x) * nudgeStrength;
+                chip.vx += forceX;
+
+                // Handle peg collisions
+                pegs.forEach(peg => {
+                    const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx+dy*dy);
+                    if (dist < CHIP_RADIUS + PEG_RADIUS) {
+                        const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
+                        chip.x += Math.cos(angle) * overlap;
+                        chip.y += Math.sin(angle) * overlap;
+                        const normalX = dx / dist, normalY = dy / dist;
+                        const dot = chip.vx * normalX + chip.vy * normalY;
+                        chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
+                        chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                        chip.vx += (Math.random() - 0.5) * 0.25;
+                    }
+                });
+
+            } else {
+                // --- PHASE 2: Smooth Landing (After clearing the pegs) ---
+
+                // Smoothly dampen horizontal velocity to zero
+                chip.vx *= 0.9;
+
+                // Smoothly interpolate the x position to the exact center of the target slot
+                // This moves it 10% of the remaining distance each frame, creating a smooth ease-in.
+                chip.x += (chip.targetX - chip.x) * 0.1;
+            }
+            
+            // --- Universal Updates (apply in both phases) ---
             chip.x += chip.vx;
             chip.y += chip.vy;
 
-            // 4. Handle wall collisions
+            // Handle wall collisions
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
                 chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
-            
-            // 5. Handle peg collisions (this logic remains the same)
-            pegs.forEach(peg => {
-                const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx+dy*dy);
-                if (dist < CHIP_RADIUS + PEG_RADIUS) {
-                    const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
-                    chip.x += Math.cos(angle) * overlap;
-                    chip.y += Math.sin(angle) * overlap;
-                    const normalX = dx / dist, normalY = dy / dist;
-                    const dot = chip.vx * normalX + chip.vy * normalY;
-                    chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
-                    chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
-                    chip.vx += (Math.random() - 0.5) * 0.25; // Keep a little randomness on impact
-                }
-            });
-            // --- END REPLACEMENT ---
 
+            // Update element style
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
 
-            // Check if chip has fallen out of the bottom
+            // Check if chip has fallen out
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
                 endDrop(chip);
                 activeChips.splice(i, 1);
