@@ -612,44 +612,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeChips.length === 0) {
             isDropping = false;
             setControlsDisabled(false);
-            // NEW: Ensure we remove the class that pauses background animations
+            // NEW: Re-enable background animations if they were paused
             document.body.classList.remove('game-active');
             return;
         }
     
-        // NEW: Add this class when the animation starts to pause other heavy animations
-        document.body.classList.add('game-active');
-    
-        // Tuned constants for the new animation logic
+        // --- NEW: Tuned Constants for the Unified Physics Model ---
         const maxHorizontalVelocity = 4;
         const maxVerticalVelocity = 10;
+        // This controls how strongly the chip is guided towards its target.
+        // Higher value = more "magnetic" and less random. Lower value = more bouncy.
+        const GUIDANCE_STRENGTH = 0.035; 
+        // This slows down horizontal movement as the chip falls, ensuring a smooth landing.
+        const HORIZONTAL_DAMPING = 0.99; 
     
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
     
-            // --- START OF NEW UNIFIED GUIDING LOGIC ---
+            // --- UNIFIED PHYSICS LOGIC (NO MORE IF/ELSE PHASES) ---
     
-            // 1. Calculate Guiding Force based on vertical progress
-            const verticalProgress = Math.min(1, chip.y / (BOARD_HEIGHT * 0.95)); // How far down the board is the chip (from 0 to 1)
-    
-            // This creates a "U" shaped curve for the guide strength.
-            // It's strong at the start (to set direction), weak in the middle (for natural bounces),
-            // and strong again at the end (for a clean landing).
-            const initialPushFactor = Math.pow(1 - verticalProgress, 2) * 0.06; // Strongest when progress is 0
-            const finalCorrectionFactor = Math.pow(verticalProgress, 4) * 0.25;  // Strongest when progress is 1
-    
-            const totalGuideStrength = initialPushFactor + finalCorrectionFactor;
-    
-            // Apply the calculated force to the horizontal velocity
-            const guideForceX = (chip.targetX - chip.x) * totalGuideStrength;
-            chip.vx += guideForceX;
-    
-            // 2. Apply Standard Physics (Gravity and Collisions)
-            
-            // Apply gravity
+            // 1. Apply Gravity (unchanged)
             chip.vy += GRAVITY;
     
-            // Handle peg collisions (this logic is now a "detail" on top of the guided path)
+            // 2. Apply Smarter, Progressive Guidance Force
+            // The force is now always active and is stronger than before.
+            // It's based on the distance to the target.
+            const guidanceForceX = (chip.targetX - chip.x) * GUIDANCE_STRENGTH;
+            chip.vx += guidanceForceX;
+    
+            // 3. Apply Horizontal Damping
+            // Gently slow down the horizontal speed on every frame. This prevents
+            // the chip from overshooting the target slot at the end.
+            chip.vx *= HORIZONTAL_DAMPING;
+    
+            // 4. Handle Peg Collisions (using the optimized version)
             const radiiSum = CHIP_RADIUS + PEG_RADIUS;
             const radiiSumSq = radiiSum * radiiSum;
     
@@ -669,42 +665,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     const normalX = dx / dist;
                     const normalY = dy / dist;
                     const dot = chip.vx * normalX + chip.vy * normalY;
-    
+                    
                     chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
                     chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                    chip.vx += (Math.random() - 0.5) * 0.25;
                 }
             });
-            
-            // --- END OF NEW GUIDING LOGIC ---
     
-    
-            // 3. Universal Updates (Velocity Capping and Position)
-    
-            // Cap the overall velocity to prevent tunneling through pegs
+            // 5. Cap Velocities (unchanged, still important)
             chip.vx = Math.max(-maxHorizontalVelocity, Math.min(maxHorizontalVelocity, chip.vx));
             chip.vy = Math.max(-maxVerticalVelocity, Math.min(maxVerticalVelocity, chip.vy));
     
-            // Update position based on final velocity for this frame
+            // 6. Update Position (unchanged)
             chip.x += chip.vx;
             chip.y += chip.vy;
     
-            // Handle wall collisions
+            // 7. Handle Wall Collisions (unchanged)
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
                 chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
     
-            // Update the chip's visual position on the screen
+            // 8. Update Element Style (unchanged)
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
     
-            // Check if chip has fallen out of the board
+            // 9. Check if chip has fallen out (unchanged)
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
                 endDrop(chip);
                 activeChips.splice(i, 1);
             }
         }
-    
-        // Continue the animation loop
         requestAnimationFrame(updatePhysics);
     }
     
