@@ -75,7 +75,7 @@
             animation: scanline 4s linear infinite alternate;
         }
         .peg { width: 8px; height: 8px; background-color: var(--peg-color); border-radius: 50%; position: absolute; box-shadow: 0 0 5px rgba(163, 184, 217, 0.3); transform: translate(-50%, -50%); z-index: 5;}
-        .chip { position: absolute; background-color: var(--chip-color); border-radius: 50%; filter: drop-shadow(0 0 8px var(--chip-color)) drop-shadow(0 0 15px var(--chip-color)); visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s; }
+        .chip { position: absolute; background-color: var(--chip-color); border-radius: 50%; box-shadow: 0 0 8px var(--chip-color), 0 0 15px var(--chip-color); visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s; will-change: transform, box-shadow; ; }
         #slots-container {
             display: flex;
             width: 100%;
@@ -634,6 +634,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const nudgeForceFactor = 0.002;
                 const nudgeStrength = (chip.y / BOARD_HEIGHT) * nudgeForceFactor;
                 let forceX = (chip.targetX - chip.x) * nudgeStrength;
+                const radiiSum = CHIP_RADIUS + PEG_RADIUS;
+                const radiiSumSq = radiiSum * radiiSum; // This is (r1 + r2)^2
 
                 // **CRITICAL FIX 1: Cap the nudge force**
                 // This prevents the "shove" that causes clipping through pegs.
@@ -642,15 +644,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Handle peg collisions
                 pegs.forEach(peg => {
-                    const dx = chip.x - peg.x, dy = chip.y - peg.y, dist = Math.sqrt(dx*dx+dy*dy);
-                    if (dist < CHIP_RADIUS + PEG_RADIUS) {
-                        const angle = Math.atan2(dy, dx), overlap = (CHIP_RADIUS + PEG_RADIUS) - dist;
+                    const dx = chip.x - peg.x;
+                    const dy = chip.y - peg.y;
+                
+                    // 1. Check for collision using squared distances (much faster)
+                    // This avoids calling Math.sqrt() for every peg on every frame.
+                    const distanceSq = dx * dx + dy * dy;
+                    
+                    if (distanceSq < radiiSumSq) {
+                        // 2. A collision occurred! Now we do the more complex math.
+                        // We only calculate the expensive square root WHEN we absolutely need it.
+                        const dist = Math.sqrt(distanceSq);
+                
+                        // Calculate the overlap to push the chip out of the peg
+                        const overlap = radiiSum - dist;
+                        const angle = Math.atan2(dy, dx);
+                        
+                        // Correct chip position immediately to prevent it from getting stuck inside the peg
                         chip.x += Math.cos(angle) * overlap;
                         chip.y += Math.sin(angle) * overlap;
-                        const normalX = dx / dist, normalY = dy / dist;
+                
+                        // Calculate the collision normal (the direction of the impact)
+                        const normalX = dx / dist;
+                        const normalY = dy / dist;
+                
+                        // Use the dot product to find the velocity component along the normal
                         const dot = chip.vx * normalX + chip.vy * normalY;
+                
+                        // Reflect the chip's velocity vector off the peg's surface
+                        // and apply damping to lose some energy (making it less bouncy)
                         chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
                         chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                
+                        // Add a tiny bit of random horizontal velocity to prevent paths from becoming too predictable
                         chip.vx += (Math.random() - 0.5) * 0.25;
                     }
                 });
