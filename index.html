@@ -610,86 +610,109 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updatePhysics() {
         if (activeChips.length === 0) {
-            isDropping = false;
-            setControlsDisabled(false);
-            // NEW: Re-enable background animations if they were paused
-            document.body.classList.remove('game-active');
+            isDropping = false; setControlsDisabled(false);
             return;
         }
-    
-        // --- NEW: Tuned Constants for the Unified Physics Model ---
-        const maxHorizontalVelocity = 4;
-        const maxVerticalVelocity = 10;
-        // This controls how strongly the chip is guided towards its target.
-        // Higher value = more "magnetic" and less random. Lower value = more bouncy.
-        const GUIDANCE_STRENGTH = 0.035; 
-        // This slows down horizontal movement as the chip falls, ensuring a smooth landing.
-        const HORIZONTAL_DAMPING = 0.99; 
-    
+
+        // --- Tuned Constants for a more stable simulation ---
+        const finalDescentStartY = BOARD_HEIGHT * 0.88;
+        const maxHorizontalVelocity = 4; // Speed limit for X-axis
+        const maxVerticalVelocity = 10;   // Speed limit for Y-axis
+        const maxNudgeForce = 0.07;       // The maximum strength of the guiding push
+
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
-    
-            // --- UNIFIED PHYSICS LOGIC (NO MORE IF/ELSE PHASES) ---
-    
-            // 1. Apply Gravity (unchanged)
+
+            // 1. Apply Gravity
             chip.vy += GRAVITY;
-    
-            // 2. Apply Smarter, Progressive Guidance Force
-            // The force is now always active and is stronger than before.
-            // It's based on the distance to the target.
-            const guidanceForceX = (chip.targetX - chip.x) * GUIDANCE_STRENGTH;
-            chip.vx += guidanceForceX;
-    
-            // 3. Apply Horizontal Damping
-            // Gently slow down the horizontal speed on every frame. This prevents
-            // the chip from overshooting the target slot at the end.
-            chip.vx *= HORIZONTAL_DAMPING;
-    
-            // 4. Handle Peg Collisions (using the optimized version)
-            const radiiSum = CHIP_RADIUS + PEG_RADIUS;
-            const radiiSumSq = radiiSum * radiiSum;
-    
-            pegs.forEach(peg => {
-                const dx = chip.x - peg.x;
-                const dy = chip.y - peg.y;
-                const distanceSq = dx * dx + dy * dy;
-    
-                if (distanceSq < radiiSumSq) {
-                    const dist = Math.sqrt(distanceSq);
-                    const overlap = radiiSum - dist;
-                    const angle = Math.atan2(dy, dx);
+
+            // 2. Main Physics Logic (Hybrid Approach)
+            if (chip.y < finalDescentStartY) {
+                // --- PHASE 1: Gentle Nudge (among the pegs) ---
+
+                // Calculate the nudge force
+                const nudgeForceFactor = 0.002;
+                const nudgeStrength = (chip.y / BOARD_HEIGHT) * nudgeForceFactor;
+                let forceX = (chip.targetX - chip.x) * nudgeStrength;
+                const radiiSum = CHIP_RADIUS + PEG_RADIUS;
+                const radiiSumSq = radiiSum * radiiSum; // This is (r1 + r2)^2
+
+                // **CRITICAL FIX 1: Cap the nudge force**
+                // This prevents the "shove" that causes clipping through pegs.
+                forceX = Math.max(-maxNudgeForce, Math.min(maxNudgeForce, forceX));
+                chip.vx += forceX;
+
+                // Handle peg collisions
+                pegs.forEach(peg => {
+                    const dx = chip.x - peg.x;
+                    const dy = chip.y - peg.y;
+                
+                    // 1. Check for collision using squared distances (much faster)
+                    // This avoids calling Math.sqrt() for every peg on every frame.
+                    const distanceSq = dx * dx + dy * dy;
                     
-                    chip.x += Math.cos(angle) * overlap;
-                    chip.y += Math.sin(angle) * overlap;
-    
-                    const normalX = dx / dist;
-                    const normalY = dy / dist;
-                    const dot = chip.vx * normalX + chip.vy * normalY;
-                    
-                    chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
-                    chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
-                    chip.vx += (Math.random() - 0.5) * 0.25;
-                }
-            });
-    
-            // 5. Cap Velocities (unchanged, still important)
+                    if (distanceSq < radiiSumSq) {
+                        // 2. A collision occurred! Now we do the more complex math.
+                        // We only calculate the expensive square root WHEN we absolutely need it.
+                        const dist = Math.sqrt(distanceSq);
+                
+                        // Calculate the overlap to push the chip out of the peg
+                        const overlap = radiiSum - dist;
+                        const angle = Math.atan2(dy, dx);
+                        
+                        // Correct chip position immediately to prevent it from getting stuck inside the peg
+                        chip.x += Math.cos(angle) * overlap;
+                        chip.y += Math.sin(angle) * overlap;
+                
+                        // Calculate the collision normal (the direction of the impact)
+                        const normalX = dx / dist;
+                        const normalY = dy / dist;
+                
+                        // Use the dot product to find the velocity component along the normal
+                        const dot = chip.vx * normalX + chip.vy * normalY;
+                
+                        // Reflect the chip's velocity vector off the peg's surface
+                        // and apply damping to lose some energy (making it less bouncy)
+                        chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
+                        chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
+                
+                        // Add a tiny bit of random horizontal velocity to prevent paths from becoming too predictable
+                        chip.vx += (Math.random() - 0.5) * 0.25;
+                    }
+                });
+
+            } else {
+                // --- PHASE 2: Smooth Landing (after clearing pegs) ---
+
+                // Smoothly dampen horizontal velocity
+                chip.vx *= 0.85;
+
+                // **CRITICAL FIX 2: Stronger and smoother landing correction**
+                // This ensures a perfect landing in the center of the slot.
+                chip.x += (chip.targetX - chip.x) * 0.2;
+            }
+            
+            // 3. Universal Updates
+            
+            // **CRITICAL FIX 3: Cap the overall velocity**
+            // This is the safety net that guarantees no "tunneling" through pegs.
             chip.vx = Math.max(-maxHorizontalVelocity, Math.min(maxHorizontalVelocity, chip.vx));
             chip.vy = Math.max(-maxVerticalVelocity, Math.min(maxVerticalVelocity, chip.vy));
-    
-            // 6. Update Position (unchanged)
+
+            // Update position based on final velocity for this frame
             chip.x += chip.vx;
             chip.y += chip.vy;
-    
-            // 7. Handle Wall Collisions (unchanged)
+
+            // Handle wall collisions
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
                 chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
-    
-            // 8. Update Element Style (unchanged)
+
+            // Update element style
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
-    
-            // 9. Check if chip has fallen out (unchanged)
+
+            // Check if chip has fallen out
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
                 endDrop(chip);
                 activeChips.splice(i, 1);
