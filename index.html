@@ -289,10 +289,19 @@
         <div class="modal-content">
             <h3>Депозит Подарками</h3>
             <div class="modal-body" style="text-align: center;">
-                <p>Для пополнения подарками переведите ваш подарок @uberstard, в короткий период он вручную зачислит вам Stars на баланс.</p>
+                <p>Для пополнения подарками, просто переведите подарок @katsyka, он автоматически зачислится на ваш баланс.</p>
+                
+                <!-- Collapsible Price List Section -->
+                <details style="margin: 20px 0;">
+                    <summary style="cursor: pointer; color: var(--highlight-primary); font-weight: 600;">Показать/скрыть цены на подарки</summary>
+                    <div id="gift-price-list" style="margin-top: 15px; max-height: 300px; overflow-y: auto; text-align: left; padding: 10px; background-color: var(--bg-color); border-radius: 8px;">
+                        <p>Загрузка цен...</p>
+                    </div>
+                </details>
+
             </div>
             <div class="modal-actions" style="flex-direction: column;">
-                <a href="https://t.me/uberstard" target="_blank" class="main-button" style="text-decoration: none;">Связаться с @uberstard</a>
+                <a href="https://t.me/katsyka" target="_blank" class="main-button" style="text-decoration: none;">Перейти к @katsyka</a>
                 <button id="close-gifts-modal-btn" class="main-button" style="background: var(--stepper-bg);">Закрыть</button>
             </div>
         </div>
@@ -475,7 +484,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Use the inventory_id if available (from full load), or a temp ID for instant add.
         const itemId = item.inventory_id || `new-${Date.now()}`;
         
-        itemEl.innerHTML = `<img src="${item.imageUrl}" style="width: 60px; height: 60px; object-fit: contain;"><span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">${item.name}</span><button class="convert-btn main-button" data-id="${itemId}" data-value="${item.value}" style="width: 100%; font-size: 0.8rem; padding: 6px; margin-top: 8px; height: auto;">${Math.round(item.value)} ${STAR_ICON_HTML}</button>`;
+        const emojiGiftNames = ["Heart", "Bear", "Rose", "Rocket", "Bottle", "Ring"];
+        const isEmojiGift = emojiGiftNames.includes(item.name);
+
+        const withdrawButtonHTML = isEmojiGift
+            ? `<button class="main-button" disabled style="background: var(--stepper-bg); flex-grow: 1; font-size: 0.7rem; padding: 6px 4px; height: auto; margin-top: 8px;">Вывод недоступен</button>`
+            : `<button class="withdraw-btn main-button" data-id="${itemId}" data-name="${item.name}" style="background: var(--button-secondary-bg); flex-grow: 1; font-size: 0.7rem; padding: 6px 4px; height: auto; margin-top: 8px;">Вывести</button>`;
+
+        itemEl.innerHTML = `
+            <img src="${item.imageUrl}" style="width: 60px; height: 60px; object-fit: contain;">
+            <span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">${item.name}</span>
+            <div style="display:flex; gap: 5px; width: 100%;">
+                <button class="convert-btn main-button" data-id="${itemId}" data-value="${item.value}" style="flex-grow: 1; font-size: 0.7rem; padding: 6px 4px; margin-top: 8px; height: auto;">${Math.round(item.value)} ${STAR_ICON_HTML}</button>
+                ${withdrawButtonHTML}
+            </div>
+        `;
         
         // Prepend to show the newest item first
         selectors.inventoryContainer.prepend(itemEl);
@@ -484,6 +507,80 @@ document.addEventListener('DOMContentLoaded', () => {
         const newButton = itemEl.querySelector('.convert-btn');
         if (newButton) {
             newButton.addEventListener('click', handleConvertGift);
+        }
+    }
+
+    async function loadGiftPrices() {
+        const listContainer = document.getElementById('gift-price-list');
+        try {
+            const response = await fetch(API_BASE_URL + '/api/get_all_gift_prices');
+            if (!response.ok) throw new Error('Network response was not ok');
+            const gifts = await response.json();
+
+            if (gifts.length === 0) {
+                listContainer.innerHTML = '<p>Не удалось загрузить цены.</p>';
+                return;
+            }
+
+            let html = '<ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px;">';
+            gifts.forEach(gift => {
+                html += `
+                    <li style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem;">
+                        <img src="${gift.imageUrl}" alt="${gift.name}" style="width: 32px; height: 32px; object-fit: contain;">
+                        <span style="flex-grow: 1;">${gift.name}</span>
+                        <strong style="color: var(--highlight-secondary);">${Math.round(gift.value)}</strong>
+                        <img src="https://github.com/Vasiliy-katsyka/plinko/blob/main/star.png?raw=true" alt="Stars" style="height: 1em; vertical-align: -0.1em;">
+                    </li>
+                `;
+            });
+            html += '</ul>';
+            listContainer.innerHTML = html;
+
+        } catch (error) {
+            console.error("Failed to load gift prices:", error);
+            listContainer.innerHTML = '<p>Ошибка загрузки цен.</p>';
+        }
+    }
+
+    // Call the function when the deposit modal is opened
+    selectors.topUpGiftsBtn.addEventListener('click', () => {
+        selectors.depositGiftsModal.style.display = 'flex';
+        loadGiftPrices(); // Load prices every time modal is opened
+    });
+    
+    document.getElementById('inventory-container').addEventListener('click', function(event) {
+        if (event.target.classList.contains('withdraw-btn')) {
+            handleWithdrawGift(event);
+        } else if (event.target.classList.contains('convert-btn')) {
+            handleConvertGift(event);
+        }
+    });
+
+    async function handleWithdrawGift(event) {
+        const button = event.target;
+        const inventoryId = button.dataset.id;
+        const giftName = button.dataset.name;
+
+        if (!confirm(`Вы уверены, что хотите вывести подарок "${giftName}"? Он будет отправлен вам в личные сообщения в Telegram.`)) {
+            return;
+        }
+
+        button.disabled = true;
+        button.textContent = '...';
+
+        try {
+            const response = await apiRequest('/api/create_withdrawal_task', 'POST', { inventory_id: inventoryId });
+            if (response.status === 'success') {
+                tg.showAlert("Запрос на вывод создан! Подарок будет отправлен вам в течение минуты.");
+                button.closest('div.panel > #inventory-section > #inventory-container > div').remove(); // More specific selector to remove the item container
+            } else {
+                tg.showAlert(response.error || 'Не удалось создать запрос на вывод.');
+                button.disabled = false;
+                button.textContent = 'Вывести';
+            }
+        } catch (e) {
+            button.disabled = false;
+            button.textContent = 'Вывести';
         }
     }
     
