@@ -5,6 +5,7 @@ import hashlib
 import json
 import secrets
 import time
+import uuid
 import asyncio
 from urllib.parse import unquote, parse_qs
 from datetime import datetime as dt, timezone, timedelta
@@ -670,6 +671,89 @@ def get_inventory():
         return jsonify({"inventory": inventory_list})
     finally:
         db.close()
+
+@app.route('/api/create_withdrawal_task', methods=['POST'])
+def create_withdrawal_task():
+    auth_data = validate_init_data(flask_request.headers.get('X-Telegram-Init-Data'), BOT_TOKEN)
+    if not auth_data: return jsonify({"error": "Auth failed"}), 401
+    
+    user_id = auth_data['id']
+    username = auth_data.get('username', f"id_{user_id}")
+    data = flask_request.get_json()
+    inventory_id = data.get('inventory_id')
+
+    db = SessionLocal()
+    try:
+        item_to_withdraw = db.query(UserGiftInventory).filter(
+            UserGiftInventory.id == inventory_id, 
+            UserGiftInventory.user_id == user_id
+        ).first()
+
+        if not item_to_withdraw:
+            return jsonify({"status": "error", "message": "Item not found in your inventory."}), 404
+        
+        # Prevent withdrawal of emoji gifts at the API level
+        if item_to_withdraw.gift_name in EMOJI_GIFTS:
+             return jsonify({"status": "error", "message": "Emoji gifts cannot be withdrawn."}), 400
+
+        # Create the task
+        task = {
+            "task_id": str(uuid.uuid4()),
+            "telegram_id": user_id,
+            "username": username,
+            "gift_name": item_to_withdraw.gift_name,
+            "gift_slug": item_to_withdraw.gift_name.lower().replace(" ", "") # Use a slug-like name for matching
+        }
+        withdrawal_tasks.append(task)
+        
+        # Immediately remove the item from the user's inventory
+        db.delete(item_to_withdraw)
+        db.commit()
+
+        logger.info(f"Created withdrawal task for user {user_id}: Withdraw '{item_to_withdraw.gift_name}'")
+        return jsonify({"status": "success", "message": "Withdrawal task created."})
+    finally:
+        db.close()
+
+@app.route('/api/get_all_gift_prices', methods=['GET'])
+def get_all_gift_prices():
+    all_gifts = []
+    
+    # Add emoji gifts with fixed prices
+    for name, data in EMOJI_GIFTS.items():
+        all_gifts.append({
+            "name": name,
+            "value": data['value'],
+            "imageUrl": data['imageUrl']
+        })
+        
+    # Add collectible gifts with dynamic floor prices
+    floor_prices = get_gift_floor_prices()
+    for gift_id, data in REGULAR_GIFTS.items():
+        normalized_name = data['name'].lower().replace("'", "")
+        if normalized_name in floor_prices:
+            all_gifts.append({
+                "name": data['name'].replace("'", " ").title(),
+                "value": floor_prices[normalized_name],
+                "imageUrl": f"https://raw.githubusercontent.com/Vasiliy-katsyka/plinko/main/GiftImages/{data['filename']}"
+            })
+
+    # Sort by value, descending
+    all_gifts.sort(key=lambda x: x['value'], reverse=True)
+    return jsonify(all_gifts)
+
+@app.route('/api/get_withdrawal_tasks', methods=['GET'])
+def get_withdrawal_tasks():
+    # Secure this endpoint for the userbot
+    received_key = flask_request.headers.get('X-API-Key')
+    if not GIFT_DEPOSIT_API_KEY or received_key != GIFT_DEPOSIT_API_KEY:
+        raise Unauthorized("Invalid API Key")
+    
+    # Return current tasks and clear the list
+    tasks_to_process = list(withdrawal_tasks)
+    withdrawal_tasks.clear()
+    
+    return jsonify({"tasks": tasks_to_process})
 
 @app.route('/api/public/deposit_gift', methods=['POST'])
 def public_deposit_gift():
