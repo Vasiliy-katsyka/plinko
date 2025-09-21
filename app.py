@@ -675,9 +675,10 @@ def get_inventory():
 def public_deposit_gift():
     """
     Public endpoint for the userbot to call.
-    Receives a gift, finds its value, and adds it to a user's balance.
+    Receives a gift, finds its value from EITHER the emoji list OR the database,
+    and adds it to a user's balance.
     """
-    # 1. Secure the endpoint with the API key
+    # 1. Secure the endpoint
     received_key = flask_request.headers.get('X-API-Key')
     if not GIFT_DEPOSIT_API_KEY or received_key != GIFT_DEPOSIT_API_KEY:
         logger.warning("Unauthorized attempt to access deposit_gift endpoint.")
@@ -689,29 +690,39 @@ def public_deposit_gift():
         return jsonify({"status": "error", "message": "Missing telegram_id or gift_name"}), 400
 
     telegram_id = data['telegram_id']
-    gift_title = data['gift_name'] # e.g., "Jolly Chimp"
+    gift_title = data['gift_name']
     
-    # 3. Normalize the gift name to match our database keys
-    # Keys in our price DB are like 'jollychimp', 'santahat'
-    normalized_gift_name = gift_title.lower().replace(" ", "").replace("'", "")
-
     db = SessionLocal()
     try:
-        # 4. Find the user
+        # 3. Find the user
         user = db.query(User).filter(User.telegram_id == telegram_id).first()
         if not user:
             logger.warning(f"Gift deposit attempt for non-existent user: {telegram_id}")
             return jsonify({"status": "error", "message": f"User with ID {telegram_id} not found."}), 404
 
-        # 5. Get the gift's value in Stars from our database
-        floor_prices = get_gift_floor_prices()
-        if normalized_gift_name not in floor_prices:
-            logger.error(f"Received unknown gift '{gift_title}' (normalized: '{normalized_gift_name}') from user {telegram_id}")
-            return jsonify({"status": "error", "message": f"Gift '{gift_title}' is not recognized or has no price."}), 400
-        
-        gift_value_in_stars = floor_prices[normalized_gift_name]
+        # --- NEW UNIFIED PRICE LOOKUP LOGIC ---
+        gift_value_in_stars = None
 
-        # 6. Update user balance and log the deposit
+        # Step A: Check if it's a known, fixed-price emoji gift first.
+        if gift_title in EMOJI_GIFTS:
+            gift_value_in_stars = EMOJI_GIFTS[gift_title]['value']
+            logging.info(f"Identified '{gift_title}' as an emoji gift with value {gift_value_in_stars}.")
+        
+        # Step B: If not an emoji gift, check the database for collectible gift prices.
+        else:
+            normalized_gift_name = gift_title.lower().replace(" ", "").replace("'", "")
+            floor_prices = get_gift_floor_prices()
+            if normalized_gift_name in floor_prices:
+                gift_value_in_stars = floor_prices[normalized_gift_name]
+                logging.info(f"Identified '{gift_title}' as a collectible gift with value {gift_value_in_stars}.")
+
+        # Step C: If the gift was not found in EITHER location, reject it.
+        if gift_value_in_stars is None:
+            logger.error(f"Received unknown gift '{gift_title}' from user {telegram_id}. Not found in emoji list or DB.")
+            return jsonify({"status": "error", "message": f"Gift '{gift_title}' is not recognized or has no price."}), 400
+        # --- END OF NEW LOGIC ---
+
+        # 5. Update user balance and log the deposit
         user.balance += gift_value_in_stars
         
         new_deposit = Deposit(
@@ -725,7 +736,7 @@ def public_deposit_gift():
 
         logger.info(f"Successfully processed gift '{gift_title}' for user {telegram_id}. Added {gift_value_in_stars} Stars. New balance: {user.balance}")
 
-        # 7. Return success response
+        # 6. Return success response
         return jsonify({
             "status": "success",
             "message": f"Successfully credited {gift_value_in_stars:.2f} Stars for the '{gift_title}' gift.",
