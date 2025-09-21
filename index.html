@@ -609,71 +609,80 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updatePhysics() {
-        // --- START: UPDATED updatePhysics FUNCTION ---
-    
         if (activeChips.length === 0) {
             isDropping = false;
             setControlsDisabled(false);
             return;
         }
     
-        // --- TUNED CONSTANTS for more reliable animation ---
-        // The point at which the chip stops bouncing and starts its final guided descent.
+        // --- TUNED CONSTANTS for a smooth and reliable animation ---
         const finalDescentStartY = BOARD_HEIGHT * 0.88;
-        // Increased maximum horizontal velocity cap slightly for a more dynamic feel.
         const maxHorizontalVelocity = 5;
         const maxVerticalVelocity = 12;
-        // (*** CHANGE 1: CRITICAL ***) Increased the maximum nudge force per frame.
-        // This gives the guidance system more authority to correct the chip's path.
         const maxNudgeForce = 0.2;
-        // (*** CHANGE 2: CRITICAL ***) Increased the overall strength of the guiding force.
         const nudgeForceFactor = 0.005;
     
     
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
     
-            // 1. Apply Gravity (Unchanged)
+            // --- START: NEW "LANDED" STATE LOGIC ---
+            // If the chip is in its final "settling" animation, handle it here.
+            if (chip.landed) {
+                // Get the center X of the target slot (calculated once)
+                if (chip.targetCenterX === undefined) {
+                    const finalSlotIndex = chip.serverResult.final_slot_index;
+                    const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
+                    if (targetSlot) {
+                        const slotRect = targetSlot.getBoundingClientRect();
+                        const boardRect = selectors.board.getBoundingClientRect();
+                        chip.targetCenterX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
+                    } else {
+                        chip.targetCenterX = BOARD_WIDTH / 2; // Fallback
+                    }
+                }
+    
+                // Smoothly interpolate the chip's position to the center of the slot
+                chip.x += (chip.targetCenterX - chip.x) * 0.25;
+                chip.y += ((BOARD_HEIGHT + CHIP_RADIUS) - chip.y) * 0.25;
+                chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
+    
+                // After a short delay, end the drop completely.
+                if (Date.now() - chip.landedTime > 250) { // 250ms settling time
+                    endDrop(chip);
+                    activeChips.splice(i, 1);
+                }
+                continue; // Skip the rest of the physics for this landed chip
+            }
+            // --- END: NEW "LANDED" STATE LOGIC ---
+    
+    
+            // 1. Apply Gravity
             chip.vy += GRAVITY;
+    
     
             // 2. Main Physics Logic (Refined Hybrid Approach)
             if (chip.y < finalDescentStartY) {
-                // --- PHASE 1: REFINED GUIDANCE LOGIC (while among the pegs) ---
-    
-                // (*** CHANGE 3: CRITICAL ***) Non-linear nudge strength calculation.
-                // The force is now weak at the top (preserving the random look) and becomes
-                // exponentially stronger as the chip falls. This is the key to ensuring it's
-                // on the right track by the time it reaches the bottom half of the board.
+                // PHASE 1: GUIDANCE (while among pegs)
                 const progress = chip.y / BOARD_HEIGHT;
-                const nudgeStrength = nudgeForceFactor * Math.pow(progress, 2); // Using Math.pow for non-linear increase
+                const nudgeStrength = nudgeForceFactor * Math.pow(progress, 2);
                 let forceX = (chip.targetX - chip.x) * nudgeStrength;
-    
-                // Cap the nudge force to prevent overly robotic movements.
                 forceX = Math.max(-maxNudgeForce, Math.min(maxNudgeForce, forceX));
                 chip.vx += forceX;
     
-    
-                // Handle peg collisions (Unchanged - this logic provides the "randomness")
+                // Peg collision logic remains the same...
                 const radiiSum = CHIP_RADIUS + PEG_RADIUS;
                 const radiiSumSq = radiiSum * radiiSum;
-    
                 pegs.forEach(peg => {
-                    const dx = chip.x - peg.x;
-                    const dy = chip.y - peg.y;
+                    const dx = chip.x - peg.x; const dy = chip.y - peg.y;
                     const distanceSq = dx * dx + dy * dy;
-    
                     if (distanceSq < radiiSumSq) {
                         const dist = Math.sqrt(distanceSq);
                         const overlap = radiiSum - dist;
                         const angle = Math.atan2(dy, dx);
-    
-                        chip.x += Math.cos(angle) * overlap;
-                        chip.y += Math.sin(angle) * overlap;
-    
-                        const normalX = dx / dist;
-                        const normalY = dy / dist;
+                        chip.x += Math.cos(angle) * overlap; chip.y += Math.sin(angle) * overlap;
+                        const normalX = dx / dist; const normalY = dy / dist;
                         const dot = chip.vx * normalX + chip.vy * normalY;
-    
                         chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
                         chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
                         chip.vx += (Math.random() - 0.5) * 0.25;
@@ -681,45 +690,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
     
             } else {
-                // --- PHASE 2: MORE ASSERTIVE LANDING (after clearing pegs) ---
-    
-                // Smoothly dampen horizontal velocity to stop wiggling.
-                chip.vx *= 0.85;
-    
-                // (*** CHANGE 4: CRITICAL ***) Increased the landing correction factor significantly.
-                // This ensures a quick, decisive, and perfectly centered landing in the target slot,
-                // correcting any final deviations from the path.
-                chip.x += (chip.targetX - chip.x) * 0.45;
+                // PHASE 2: SMOOTHER LANDING (after clearing pegs)
+                chip.vx *= 0.90; // Dampen horizontal velocity
+                // (*** CHANGE: SMOOTHER LANDING ***) Reduced the correction factor for a less aggressive "snap".
+                chip.x += (chip.targetX - chip.x) * 0.2;
             }
     
-            // 3. Universal Updates (Unchanged)
     
-            // Cap the overall velocity as a final safety measure.
+            // 3. Universal Updates
             chip.vx = Math.max(-maxHorizontalVelocity, Math.min(maxHorizontalVelocity, chip.vx));
             chip.vy = Math.max(-maxVerticalVelocity, Math.min(maxVerticalVelocity, chip.vy));
+            chip.x += chip.vx; chip.y += chip.vy;
     
-            // Update position based on final velocity for this frame.
-            chip.x += chip.vx;
-            chip.y += chip.vy;
-    
-            // Handle wall collisions.
+            // Wall collisions
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
                 chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
     
-            // Update element style.
+            // Update element style
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
     
-            // Check if chip has fallen out.
+    
+            // --- START: REVISED BOUNDARY CHECK ---
+            // Check if chip has fallen out of the board
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
-                endDrop(chip);
-                activeChips.splice(i, 1);
+                // INSTEAD of removing it, we now put it into the "landed" state.
+                chip.landed = true;
+                chip.landedTime = Date.now();
             }
+            // --- END: REVISED BOUNDARY CHECK ---
         }
         requestAnimationFrame(updatePhysics);
-    
-        // --- END: UPDATED updatePhysics FUNCTION ---
     }
     
     // CORRECTED endDrop function
