@@ -193,6 +193,8 @@ gift_floor_cache = {
 }
 CACHE_DURATION_SECONDS = 900  # 15 minutes
 
+withdrawal_tasks = []
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
