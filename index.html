@@ -466,48 +466,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addGiftToInventoryUI(item) {
-        // This item object comes directly from the server response ('won_item')
-        // or from the inventory list.
         const selectors = {
             inventoryContainer: document.getElementById('inventory-container'),
             inventoryPlaceholder: document.getElementById('inventory-placeholder')
         };
         
-        // Hide the 'Inventory is empty' placeholder
         if (selectors.inventoryPlaceholder) {
             selectors.inventoryPlaceholder.style.display = 'none';
         }
     
         const itemEl = document.createElement('div');
+        // --- CHANGE IS HERE ---
+        // Added a specific class 'inventory-item' to the container for easy selection
+        itemEl.className = 'inventory-item'; 
         itemEl.style.cssText = `background-color: var(--surface-color-2); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: space-between;`;
         
-        // Use the inventory_id if available (from full load), or a temp ID for instant add.
         const itemId = item.inventory_id || `new-${Date.now()}`;
-        
         const emojiGiftNames = ["Heart", "Bear", "Rose", "Rocket", "Bottle", "Ring"];
         const isEmojiGift = emojiGiftNames.includes(item.name);
-
         const withdrawButtonHTML = isEmojiGift
             ? `<button class="main-button" disabled style="background: var(--stepper-bg); flex-grow: 1; font-size: 0.7rem; padding: 6px 4px; height: auto; margin-top: 8px;">Вывод недоступен</button>`
             : `<button class="withdraw-btn main-button" data-id="${itemId}" data-name="${item.name}" style="background: var(--button-secondary-bg); flex-grow: 1; font-size: 0.7rem; padding: 6px 4px; height: auto; margin-top: 8px;">Вывести</button>`;
-
+    
         itemEl.innerHTML = `
             <img src="${item.imageUrl}" style="width: 60px; height: 60px; object-fit: contain;">
-            <span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">${item.name}</span>
+            
+            <!-- CHANGE IS HERE -->
+            <span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">${formatGiftName(item.name)}</span>
+            
             <div style="display:flex; gap: 5px; width: 100%;">
                 <button class="convert-btn main-button" data-id="${itemId}" data-value="${item.value}" style="flex-grow: 1; font-size: 0.7rem; padding: 6px 4px; margin-top: 8px; height: auto;">${Math.round(item.value)} ${STAR_ICON_HTML}</button>
                 ${withdrawButtonHTML}
             </div>
         `;
         
-        // Prepend to show the newest item first
         selectors.inventoryContainer.prepend(itemEl);
         
-        // Re-attach the event listener to the new button
-        const newButton = itemEl.querySelector('.convert-btn');
-        if (newButton) {
-            newButton.addEventListener('click', handleConvertGift);
-        }
+        // The main event listener on the parent container handles clicks, so no need to add listeners here.
     }
 
     async function loadGiftPrices() {
@@ -549,37 +544,47 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('inventory-container').addEventListener('click', function(event) {
-        if (event.target.classList.contains('withdraw-btn')) {
-            handleWithdrawGift(event);
-        } else if (event.target.classList.contains('convert-btn')) {
-            handleConvertGift(event);
+        // Use .closest() to ensure we get the button even if an inner element (like an icon) is clicked
+        const button = event.target.closest('button');
+        if (!button) return; // Exit if the click wasn't on a button or inside one
+    
+        if (button.classList.contains('withdraw-btn')) {
+            handleWithdrawGift(button);
+        } else if (button.classList.contains('convert-btn')) {
+            handleConvertGift(button);
         }
     });
-
-    async function handleWithdrawGift(event) {
-        const button = event.target;
+    
+    async function handleWithdrawGift(button) {
+        const itemContainer = button.closest('.inventory-item');
+        if (!itemContainer) return;
+    
+        const actionButtons = itemContainer.querySelectorAll('button');
         const inventoryId = button.dataset.id;
         const giftName = button.dataset.name;
-
-        if (!confirm(`Вы уверены, что хотите вывести подарок "${giftName}"? Он будет отправлен вам в личные сообщения в Telegram.`)) {
+    
+        if (!confirm(`Вы уверены, что хотите вывести подарок "${formatGiftName(giftName)}"? Он будет отправлен вам в личные сообщения в Telegram.`)) {
             return;
         }
-
-        button.disabled = true;
+    
+        // *** FIX for abuse: Disable all buttons on this item.
+        actionButtons.forEach(btn => btn.disabled = true);
         button.textContent = '...';
-
+    
         try {
             const response = await apiRequest('/api/create_withdrawal_task', 'POST', { inventory_id: inventoryId });
             if (response.status === 'success') {
                 tg.showAlert("Запрос на вывод создан! Подарок будет отправлен вам в течение минуты.");
-                button.closest('div.panel > #inventory-section > #inventory-container > div').remove(); // More specific selector to remove the item container
+                itemContainer.remove(); // Remove the entire item container
             } else {
                 tg.showAlert(response.error || 'Не удалось создать запрос на вывод.');
-                button.disabled = false;
+                // On failure, re-enable buttons
+                actionButtons.forEach(btn => btn.disabled = false);
                 button.textContent = 'Вывести';
             }
         } catch (e) {
-            button.disabled = false;
+            // On error, re-enable buttons
+            actionButtons.forEach(btn => btn.disabled = false);
             button.textContent = 'Вывести';
         }
     }
@@ -827,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = chip.serverResult;
         
         if (result.won_item) {
-            tg.showAlert(`Вы выиграли: ${result.won_item.name}!`);
+            tg.showAlert(`Вы выиграли: ${formatGiftName(result.won_item.name)}!`);
             if (result.won_item.value > 500) {
                  tg.HapticFeedback.notificationOccurred('success');
             }
@@ -876,26 +881,54 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) { inventoryPlaceholder.textContent = 'Ошибка загрузки.'; }
     }
+
+    function formatGiftName(rawName) {
+        if (!rawName) return '';
+        // This handles names like "b-daycandle" or "durov'scap" by creating word breaks
+        const spacedName = rawName.replace(/[-']/g, ' '); 
     
-    async function handleConvertGift(event) {
-        const button = event.currentTarget;
+        // This capitalizes the first letter of each word, mimicking .title()
+        return spacedName
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+    
+    async function handleConvertGift(button) {
+        const itemContainer = button.closest('.inventory-item');
+        if (!itemContainer) return;
+    
+        const actionButtons = itemContainer.querySelectorAll('button');
         const inventoryId = button.dataset.id;
-        button.disabled = true; button.textContent = '...';
+        // *** FIX for NaN bug: Store value before any async operations.
+        const giftValue = button.dataset.value;
+    
+        // *** FIX for abuse: Disable all buttons on this item.
+        actionButtons.forEach(btn => btn.disabled = true);
+        button.textContent = '...';
+    
         try {
             const response = await apiRequest('/api/convert_gift', 'POST', { inventory_id: inventoryId });
             if (response.status === 'success') {
                 tg.HapticFeedback.notificationOccurred('success');
-                currentUser.balance = response.new_balance; updateBalanceUI();
-                button.closest('div').remove();
-                if (selectors.inventoryContainer.childElementCount <= 1) { // Only placeholder is left
+                currentUser.balance = response.new_balance;
+                updateBalanceUI();
+                itemContainer.remove(); // Remove the entire item container
+                if (selectors.inventoryContainer.childElementCount === 1) {
                     selectors.inventoryPlaceholder.style.display = 'block';
                     selectors.inventoryPlaceholder.textContent = 'Инвентарь пуст.';
                 }
             } else {
                 tg.showAlert(response.error || 'Не удалось конвертировать подарок.');
-                button.disabled = false; button.innerHTML = `${Math.round(button.dataset.value)} ${STAR_ICON_HTML}`;
+                actionButtons.forEach(btn => btn.disabled = false);
+                // *** FIX for NaN bug: Restore button text using the stored variable.
+                button.innerHTML = `${Math.round(giftValue)} ${STAR_ICON_HTML}`;
             }
-        } catch (e) { button.disabled = false; button.innerHTML = `${Math.round(button.dataset.value)} ${STAR_ICON_HTML}`; }
+        } catch (e) {
+            actionButtons.forEach(btn => btn.disabled = false);
+            // *** FIX for NaN bug: Restore button text using the stored variable.
+            button.innerHTML = `${Math.round(giftValue)} ${STAR_ICON_HTML}`;
+        }
     }
 
     function updateFreeDropTimer() {
