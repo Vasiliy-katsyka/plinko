@@ -485,23 +485,21 @@ def plinko_drop():
     if bet_mode not in BET_MODES_CONFIG:
         return jsonify({"error": "Invalid bet mode"}), 400
     
-    # --- START: NEW ROBUST CACHE LOGIC ---
     cached_entry = board_cache.get(seed)
 
-    # STRICT CHECK: If the board is not in the cache, it's an invalid/expired session. DO NOT regenerate.
     if not cached_entry or (dt.utcnow() - cached_entry['timestamp']) > timedelta(seconds=CACHE_EXPIRATION_SECONDS):
         logger.warning(f"STRICT CACHE MISS for seed: {seed}. Rejecting drop.")
-        # We explicitly delete to handle expired entries
         if seed in board_cache:
             del board_cache[seed]
         return jsonify({
             "error": "Ваша игровая сессия истекла. Пожалуйста, сделайте бросок еще раз."
-        }), 400 # 400 Bad Request is appropriate here
+        }), 400
 
-    # If the cache hits, use the board and immediately remove it to prevent replay.
+    # The cached board is found and is valid. We use it.
     all_gifts_on_board = cached_entry['board']
-    del board_cache[seed]
-    # --- END: NEW ROBUST CACHE LOGIC ---
+    
+    # --- FIX IS HERE: The problematic 'del board_cache[seed]' line has been REMOVED. ---
+    # The cache entry will now persist for multiple drops until it expires naturally.
 
     config = BET_MODES_CONFIG[bet_mode]
     bet_amount = Decimal(str(config['bet_amount']))
