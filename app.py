@@ -899,20 +899,31 @@ def get_board_slots():
     
     data = flask_request.get_json()
     bet_mode = data.get('betMode', '200')
-    seed = data.get('seed', 'default_seed')
+    seed = data.get('seed')
 
     if bet_mode not in BET_MODES_CONFIG:
         return jsonify({"error": "Invalid bet mode"}), 400
     
     try:
-        # --- CHANGE IS HERE: Caching Logic ---
-        all_gifts_on_board = generate_board_gifts(bet_mode, seed)
-        board_cache[seed] = {
-            'board': all_gifts_on_board,
-            'timestamp': dt.utcnow()
-        }
-        # --- END CHANGE ---
+        # --- START: NEW "CHECK CACHE FIRST" LOGIC ---
         
+        # Step 1: Check if a board for this exact seed already exists and is not expired.
+        cached_entry = board_cache.get(seed)
+        if cached_entry and (dt.utcnow() - cached_entry['timestamp']) < timedelta(seconds=CACHE_EXPIRATION_SECONDS):
+            logger.info(f"CACHE HIT for board seed: {seed}. Returning existing board.")
+            all_gifts_on_board = cached_entry['board']
+        else:
+            # Step 2: If not in cache (or expired), generate it ONCE and store it.
+            logger.info(f"CACHE MISS for board seed: {seed}. Generating and caching new board.")
+            all_gifts_on_board = generate_board_gifts(bet_mode, seed)
+            board_cache[seed] = {
+                'board': all_gifts_on_board,
+                'timestamp': dt.utcnow()
+            }
+        
+        # --- END: NEW "CHECK CACHE FIRST" LOGIC ---
+        
+        # Step 3: Format the response for the frontend (this runs for both cache hits and misses).
         formatted_slots = []
         bet_amount = BET_MODES_CONFIG[bet_mode]['bet_amount']
         for gift in all_gifts_on_board:
