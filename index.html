@@ -623,23 +623,36 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleSingleDrop() {
         const betAmount = parseInt(currentBetMode, 10);
         if (betAmount > currentUser.balance) { tg.showAlert("Недостаточно средств!"); return; }
+        
         setControlsDisabled(true);
+        
+        // Temporarily reduce balance on the frontend for responsiveness
+        const originalBalance = currentUser.balance;
         currentUser.balance -= betAmount;
         updateBalanceUI();
+    
         try {
-            // Send the bet mode AND the EXISTING board seed
             const result = await apiRequest('/api/plinko_drop', 'POST', { 
                 betMode: currentBetMode,
-                seed: boardSeed // <--- SEND THE SAME SEED
+                seed: boardSeed
             });
+            
+            // This part is unchanged, it runs on success
             animateSingleChip(result);
+    
         } catch (error) {
-            currentUser.balance += betAmount;
+            // --- CHANGE IS HERE: Handle the session error and re-enable controls ---
+            // The apiRequest function already shows the alert with the error message
+            console.error("Plinko drop failed:", error.message);
+            
+            // Restore the balance since the drop failed
+            currentUser.balance = originalBalance;
             updateBalanceUI();
+            
+            // Re-enable the controls so the user can try again
             setControlsDisabled(false);
         }
     }
-
     function animateSingleChip(resultFromServer) {
         const chipId = chipIdCounter++;
         const chipEl = document.createElement('div');
