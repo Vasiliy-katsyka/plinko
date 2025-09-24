@@ -29,7 +29,7 @@ from pytoniq import LiteBalancer
 from portalsmp import giftsFloors
 from werkzeug.exceptions import Unauthorized
 
-# --- Configuration ---
+# --- Configuration --
 load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
