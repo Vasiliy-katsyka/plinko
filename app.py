@@ -193,6 +193,8 @@ gift_floor_cache = {
 }
 CACHE_DURATION_SECONDS = 900  # 15 minutes
 
+board_cache = {}
+CACHE_EXPIRATION_SECONDS = 300 # 5 minutes
 withdrawal_tasks = []
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -483,6 +485,19 @@ def plinko_drop():
     if bet_mode not in BET_MODES_CONFIG:
         return jsonify({"error": "Invalid bet mode"}), 400
     
+    # --- CHANGE IS HERE: Retrieve board from cache ---
+    cached_entry = board_cache.get(seed)
+    if not cached_entry or (dt.utcnow() - cached_entry['timestamp']) > timedelta(seconds=CACHE_EXPIRATION_SECONDS):
+        logger.warning(f"Board cache miss or expired for seed: {seed}. Regenerating.")
+        # Fallback: Regenerate if not in cache (should be rare)
+        all_gifts_on_board = generate_board_gifts(bet_mode, seed)
+    else:
+        all_gifts_on_board = cached_entry['board']
+        # Clean up used cache entry
+        if seed in board_cache:
+            del board_cache[seed]
+    # --- END CHANGE ---
+
     config = BET_MODES_CONFIG[bet_mode]
     bet_amount = Decimal(str(config['bet_amount']))
     
@@ -887,10 +902,14 @@ def get_board_slots():
         return jsonify({"error": "Invalid bet mode"}), 400
     
     try:
-        # Generate the consistent list of gifts using our new helper function
+        # --- CHANGE IS HERE: Caching Logic ---
         all_gifts_on_board = generate_board_gifts(bet_mode, seed)
+        board_cache[seed] = {
+            'board': all_gifts_on_board,
+            'timestamp': dt.utcnow()
+        }
+        # --- END CHANGE ---
         
-        # Format the response for the frontend
         formatted_slots = []
         bet_amount = BET_MODES_CONFIG[bet_mode]['bet_amount']
         for gift in all_gifts_on_board:
