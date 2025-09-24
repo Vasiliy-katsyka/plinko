@@ -338,8 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let chipIdCounter = 0;
     let boardSeed = null;
     let pegs = [];
-    let vSpacing = 0;
-    let lastTime = 0;   
     let BOARD_WIDTH, BOARD_HEIGHT, CHIP_RADIUS, PEG_RADIUS;
     let GRAVITY = 0.25, DAMPING = 0.55;
     let freeDropTimerInterval = null;
@@ -632,7 +630,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setControlsDisabled(false);
         }
     }
-    
     function animateSingleChip(resultFromServer) {
         const chipId = chipIdCounter++;
         const chipEl = document.createElement('div');
@@ -640,10 +637,11 @@ document.addEventListener('DOMContentLoaded', () => {
         chipEl.style.width = `${CHIP_RADIUS * 2}px`;
         chipEl.style.height = `${CHIP_RADIUS * 2}px`;
     
+        // --- PHYSICS CHANGE: Calculate Target X and Initial Velocity ---
         const finalSlotIndex = resultFromServer.final_slot_index;
         const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
         const startX = BOARD_WIDTH / 2;
-        let targetX = startX; 
+        let targetX = startX; // Default to center
     
         if (targetSlot) {
             const slotRect = targetSlot.getBoundingClientRect();
@@ -651,15 +649,16 @@ document.addEventListener('DOMContentLoaded', () => {
             targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
         }
         
-        // --- CHANGE IS HERE: Scale initial velocity for a per-second rate ---
-        // The base values are now multiplied by 60 to convert them from per-frame to per-second.
-        const initialVx = ((targetX - startX) * 0.05 + (Math.random() - 0.5) * 2) * 60;
-        
+        // This is the core of the new physics: A calculated initial push.
+        // It's a combination of a bias towards the target and some randomness.
+        const initialVx = (targetX - startX) * 0.05 + (Math.random() - 0.5) * 2;
+        // --- END PHYSICS CHANGE ---
+    
         const newChip = {
             id: chipId, 
             x: startX, 
             y: CHIP_RADIUS, 
-            vx: initialVx, 
+            vx: initialVx, // Use the new initial velocity
             vy: 0, 
             element: chipEl, 
             serverResult: resultFromServer,
@@ -673,7 +672,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isDropping) {
             isDropping = true;
             document.querySelectorAll('.slot.highlight').forEach(s => s.classList.remove('highlight'));
-            lastTime = performance.now(); // Initialize the clock
             requestAnimationFrame(updatePhysics);
         }
     }
@@ -689,18 +687,14 @@ document.addEventListener('DOMContentLoaded', () => {
         pegs = [];
         selectors.board.innerHTML = '';
         const hSpacing = BOARD_WIDTH / cols;
-        
-        // --- CHANGE IS HERE: Make vSpacing a global variable ---
-        vSpacing = BOARD_HEIGHT / (NUM_ROWS + 1); 
-        
+        const vSpacing = BOARD_HEIGHT / (NUM_ROWS + 1);
         for (let r = 0; r < NUM_ROWS; r++) {
             const numPegs = r % 2 === 0 ? cols - 1 : cols;
             const xOffset = r % 2 === 0 ? hSpacing : hSpacing / 2;
             for (let c = 0; c < numPegs; c++) {
                 const x = xOffset + c * hSpacing;
                 const y = vSpacing + r * vSpacing;
-                // Add row info to each peg for easy lookup later
-                pegs.push({ x, y, row: r }); 
+                pegs.push({ x, y });
                 const pegEl = document.createElement('div');
                 pegEl.className = 'peg';
                 pegEl.style.cssText = `width:${PEG_RADIUS*2}px;height:${PEG_RADIUS*2}px;left:${x}px;top:${y}px;`;
@@ -710,28 +704,26 @@ document.addEventListener('DOMContentLoaded', () => {
         updateBoardSlots();
     }
     
-    function updatePhysics(currentTime) {
+    function updatePhysics() {
         if (activeChips.length === 0) {
             isDropping = false;
             setControlsDisabled(false);
             return;
         }
     
-        // --- 1. DELTA TIME CALCULATION ---
-        // Guarantees consistent speed on all devices.
-        const dt = (currentTime - lastTime) / 1000; // Time in seconds
-        lastTime = currentTime;
-    
-        // --- 2. DEFINE PHYSICS CONSTANTS AS "PER SECOND" RATES ---
-        const GRAVITY = 1500;        // pixels per second^2
-        const DAMPING = 0.6;         // Energy retained on bounce
-        const funnelStartY = BOARD_HEIGHT * 0.85; 
-        const funnelStrength = 1.5;  // A multiplier for the funneling effect
+        // --- NEW TUNED CONSTANTS ---
+        GRAVITY = 0.25;      // Downward force
+        DAMPING = 0.6;       // Energy retained on bounce (higher is bouncier)
+        const maxHorizontalVelocity = 8;
+        const maxVerticalVelocity = 15;
+        const funnelStartY = BOARD_HEIGHT * 0.85; // When to start guiding into slots
+        const funnelStrength = 0.015;             // How strongly to guide
     
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
     
-            if (chip.landed) { // Landing animation is unchanged
+            // Handle the final "settling" animation after the chip leaves the board
+            if (chip.landed) {
                 if (chip.targetCenterX === undefined) {
                     const finalSlotIndex = chip.serverResult.final_slot_index;
                     const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
@@ -746,28 +738,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     endDrop(chip);
                     activeChips.splice(i, 1);
                 }
-                continue;
+                continue; // Skip physics for landed chips
             }
     
-            // --- 3. APPLY FORCES (Time-based) ---
-            chip.vy += GRAVITY * dt;
+            // 1. Apply Gravity
+            chip.vy += GRAVITY;
     
-            // --- 4. OPTIMIZED COLLISION DETECTION ---
-            const currentRow = Math.floor((chip.y - vSpacing / 2) / vSpacing);
-            const pegsToCheck = pegs.filter(p => p.row >= currentRow && p.row <= currentRow + 1);
-    
+            // 2. Peg Collision Physics
             const radiiSum = CHIP_RADIUS + PEG_RADIUS;
-            pegsToCheck.forEach(peg => {
+            pegs.forEach(peg => {
                 const dx = chip.x - peg.x;
                 const dy = chip.y - peg.y;
-                if (dx * dx + dy * dy < radiiSum * radiiSum) {
-                    const dist = Math.sqrt(dx * dx + dy * dy);
+                const distanceSq = dx * dx + dy * dy;
+    
+                if (distanceSq < radiiSum * radiiSum) {
+                    const dist = Math.sqrt(distanceSq);
                     const overlap = radiiSum - dist;
                     const angle = Math.atan2(dy, dx);
                     
+                    // Resolve overlap
                     chip.x += Math.cos(angle) * overlap;
                     chip.y += Math.sin(angle) * overlap;
                     
+                    // Perform bounce (standard reflection formula)
                     const normalX = dx / dist;
                     const normalY = dy / dist;
                     const dot = chip.vx * normalX + chip.vy * normalY;
@@ -776,27 +769,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
     
-            // --- 5. SUBTLE FUNNELING (Time-based) ---
+            // 3. Subtle Funneling at the Bottom
+            // This gently guides the chip horizontally as it exits the last rows.
             if (chip.y > funnelStartY) {
-                const funnelForce = (chip.targetX - chip.x) * funnelStrength;
-                chip.vx += funnelForce * dt;
-            }
-            
-            // --- 6. UPDATE POSITION (Time-based) ---
-            chip.x += chip.vx * dt;
-            chip.y += chip.vy * dt;
-    
-            // Wall collisions
-            if (chip.x - CHIP_RADIUS < 0) {
-                chip.vx *= -DAMPING;
-                chip.x = CHIP_RADIUS;
-            } else if (chip.x + CHIP_RADIUS > BOARD_WIDTH) {
-                chip.vx *= -DAMPING;
-                chip.x = BOARD_WIDTH - CHIP_RADIUS;
+                chip.vx += (chip.targetX - chip.x) * funnelStrength;
             }
     
+            // 4. Update Position & Handle Wall Collisions
+            chip.vx = Math.max(-maxHorizontalVelocity, Math.min(maxHorizontalVelocity, chip.vx));
+            chip.vy = Math.max(-maxVerticalVelocity, Math.min(maxVerticalVelocity, chip.vy));
+            chip.x += chip.vx;
+            chip.y += chip.vy;
+    
+            if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
+                chip.vx *= -DAMPING;
+                chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
+            }
+    
+            // 5. Update Element Style
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
     
+            // 6. Check if chip has left the board to start the landing animation
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
                 chip.landed = true;
                 chip.landedTime = Date.now();
