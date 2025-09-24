@@ -884,10 +884,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function formatGiftName(rawName) {
         if (!rawName) return '';
-        // This handles names like "b-daycandle" or "durov'scap" by creating word breaks
-        const spacedName = rawName.replace(/[-']/g, ' '); 
+        
+        // Step 1: Handle names with separators like "b-daycandle" or "durov'scap"
+        let spacedName = rawName.replace(/[-']/g, ' ');
     
-        // This capitalizes the first letter of each word, mimicking .title()
+        // Step 2: Handle camelCase names like "jollyChimp" -> "jolly Chimp"
+        // It inserts a space before any uppercase letter that is preceded by a lowercase letter.
+        spacedName = spacedName.replace(/([a-z])([A-Z])/g, '$1 $2');
+    
+        // Step 3: Capitalize the first letter of each word
         return spacedName
             .split(' ')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -948,21 +953,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initFreeTryView() { updateFreeDropTimer(); freeDropTimerInterval = setInterval(updateFreeDropTimer, 1000); }
 
+    async function setBetModeUI(betValue) {
+        if (isDropping) return;
+        currentBetMode = betValue;
+        
+        // Update button visual state
+        selectors.betModeButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.bet === betValue);
+        });
+        
+        // Asynchronously update the slots to match the new bet mode
+        await updateBoardSlots();
+    }
+    
+    
+    // --- MODIFY this function ---
     async function handleClaimFreeDrop() {
         selectors.claimFreeDropBtn.disabled = true;
         try {
             const result = await apiRequest('/api/claim_free_drop', 'POST', {});
             if (result.status === 'success') {
-                // The alert was here. By removing it, the code will proceed immediately.
+                
+                // --- CHANGE IS HERE: Set UI to 200 mode before animating ---
+                await setBetModeUI('200'); 
+                
                 currentUser.last_free_drop_claim = result.new_claim_time;
                 switchView('main-game-view');
-                // The balance doesn't actually change, but we call this for consistency.
                 currentUser.balance = result.game_result.new_balance; 
                 updateBalanceUI();
-                // Start the animation with the result from the server.
                 animateSingleChip(result.game_result);
+                
             } else { 
-                // If there's an error (e.g., claimed too early), show an alert and re-enable the button.
                 tg.showAlert(result.message); 
                 selectors.claimFreeDropBtn.disabled = false; 
             }
@@ -1036,6 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
             selectors.betModeButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
             updateBoardSlots();
+            setBetModeUI(button.dataset.bet);
         });
     });
 
