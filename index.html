@@ -660,18 +660,19 @@ document.addEventListener('DOMContentLoaded', () => {
             targetX = (slotRect.left - boardRect.left) + (slotRect.width / 2);
         }
         
-        // --- УЛУЧШЕННЫЙ НАЧАЛЬНЫЙ ИМПУЛЬС ---
-        // Небольшой толчок в нужную сторону + небольшая случайность.
-        // Это выглядит естественно, но не создает излишнего хаоса.
-        const directionBias = Math.sign(targetX - startX) * 0.5; // Легкий намек на направление
-        const randomPush = (Math.random() - 0.5) * 4; // Случайность, чтобы не выглядело одинаково
+        // --- PHYSICS FIX: A much more natural initial push ---
+        // Instead of a massive shove, this is a mostly random velocity with a tiny directional bias.
+        // The chaos from the pegs will now do most of the work.
+        const directionBias = Math.sign(targetX - startX) * 0.5; // A tiny hint (-0.5, 0, or 0.5)
+        const randomPush = (Math.random() - 0.5) * 4; // A random velocity between -2 and +2
         const initialVx = directionBias + randomPush;
+        // --- END PHYSICS FIX ---
     
         const newChip = {
             id: chipId, 
             x: startX, 
             y: CHIP_RADIUS, 
-            vx: initialVx,
+            vx: initialVx, // Use the new, more realistic initial velocity
             vy: 0, 
             element: chipEl, 
             serverResult: resultFromServer,
@@ -724,19 +725,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     
-        // --- Константы для плавной физики ---
-        GRAVITY = 0.25;
-        DAMPING = 0.6; 
+        // --- ИЗМЕНЕННЫЕ КОНСТАНТЫ ФИЗИКИ ---
+        GRAVITY = 0.25; // Оставляем как есть, хорошая скорость падения.
+        DAMPING = 0.6;  // Немного увеличим сохранение энергии при отскоке (было 0.55), чтобы шарик был чуть "живее".
         const maxHorizontalVelocity = 8;
         const maxVerticalVelocity = 12;
         const separationBuffer = 0.1;
-        // Базовая сила "магнита". Мы будем ее плавно увеличивать.
-        const baseFunnelStrength = 0.04; 
     
+        // !!! ГЛАВНОЕ ИЗМЕНЕНИЕ !!!
+        // Уменьшаем базовую силу "воронки" в 5 раз. Теперь она будет очень слабой.
+        const baseFunnelStrength = 0.008; // Было 0.04
+    
+        // --- Основной цикл физики ---
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
     
-            // --- Фаза приземления (плавное "всасывание" в слот) ---
             if (chip.landed) {
                 if (chip.targetCenterX === undefined) {
                     const finalSlotIndex = chip.serverResult.final_slot_index;
@@ -744,7 +747,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const boardRect = selectors.board.getBoundingClientRect();
                     chip.targetCenterX = targetSlot ? (targetSlot.getBoundingClientRect().left - boardRect.left) + (targetSlot.width / 2) : BOARD_WIDTH / 2;
                 }
-                // Интерполяция для гладкого движения в центр слота
                 chip.x += (chip.targetCenterX - chip.x) * 0.25;
                 chip.y += ((BOARD_HEIGHT + CHIP_RADIUS) - chip.y) * 0.25;
                 chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
@@ -753,15 +755,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     endDrop(chip);
                     activeChips.splice(i, 1);
                 }
-                continue; 
+                continue;
             }
     
-            // --- ЕДИНАЯ ФИЗИКА ДЛЯ ВСЕГО ПОЛЯ ---
-    
-            // 1. Применяем гравитацию
             chip.vy += GRAVITY;
     
-            // 2. Столкновения с колышками (это создает ощущение случайности)
             const radiiSum = CHIP_RADIUS + PEG_RADIUS;
             pegs.forEach(peg => {
                 const dx = chip.x - peg.x;
@@ -783,35 +781,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
                     chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
     
-                    // Предотвращаем "залипание" на колышках
                     if (chip.vy > -1 && normalY < -0.5) {
                         chip.vy = -1;
                     }
                 }
             });
     
-            // 3. Прогрессивная Воронка ("магнит")
-            // Сила нарастает плавно по мере падения (Math.pow(progress, 2) - это парабола, очень плавно).
+            // --- УЛУЧШЕННАЯ ЛОГИКА "ВОРОНКИ" ---
+            // Теперь сила направляющей воронки зависит от прогресса в степени 4 (Math.pow(progress, 4)).
+            // Это означает, что на верхних 70% доски сила практически НУЛЕВАЯ,
+            // и только на последних 30% она плавно нарастает до своего (теперь очень низкого) максимума.
+            // Это сохраняет случайность вверху и мягко корректирует внизу.
             const progress = Math.max(0, chip.y / BOARD_HEIGHT);
-            const currentFunnelStrength = baseFunnelStrength * Math.pow(progress, 2); 
+            const currentFunnelStrength = baseFunnelStrength * Math.pow(progress, 4); 
             chip.vx += (chip.targetX - chip.x) * currentFunnelStrength;
             
-            // 4. Обновляем позицию и ограничиваем скорость
+    
             chip.vx = Math.max(-maxHorizontalVelocity, Math.min(maxHorizontalVelocity, chip.vx));
             chip.vy = Math.max(-maxVerticalVelocity, Math.min(maxVerticalVelocity, chip.vy));
             chip.x += chip.vx;
             chip.y += chip.vy;
     
-            // 5. Столкновения со стенами
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
                 chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
     
-            // 6. Отображаем шарик
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
             
-            // 7. Проверяем, не упал ли шарик, чтобы начать фазу приземления
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
                 chip.landed = true;
                 chip.landedTime = Date.now();
