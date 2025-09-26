@@ -506,7 +506,6 @@ def plinko_drop():
     
     db = SessionLocal()
     try:
-    try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         if not user or Decimal(str(user.balance)) < bet_amount:
             return jsonify({"error": "Insufficient balance"}), 400
