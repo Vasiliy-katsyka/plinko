@@ -495,16 +495,17 @@ def plinko_drop():
             "error": "Ваша игровая сессия истекла. Пожалуйста, сделайте бросок еще раз."
         }), 400
 
-    # The cached board is found and is valid. We use it.
+    # Используем данные из кэша
     all_gifts_on_board = cached_entry['board']
     
-    # --- FIX IS HERE: The problematic 'del board_cache[seed]' line has been REMOVED. ---
-    # The cache entry will now persist for multiple drops until it expires naturally.
+    # --- FIX: Строка `del board_cache[seed]` была УДАЛЕНА отсюда. ---
+    # Теперь сид остается валидным для нескольких бросков.
 
     config = BET_MODES_CONFIG[bet_mode]
     bet_amount = Decimal(str(config['bet_amount']))
     
     db = SessionLocal()
+    try:
     try:
         user = db.query(User).filter(User.telegram_id == user_id).first()
         if not user or Decimal(str(user.balance)) < bet_amount:
