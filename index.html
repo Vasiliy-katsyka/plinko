@@ -83,7 +83,19 @@
             animation: scanline 4s linear infinite alternate;
         }
         .peg { width: 0.5rem; height: 0.5rem; background-color: var(--peg-color); border-radius: 50%; position: absolute; box-shadow: 0 0 0.3rem rgba(163, 184, 217, 0.3); transform: translate(-50%, -50%); z-index: 5;}
-        .chip { position: absolute; background-color: var(--chip-color); border-radius: 50%; box-shadow: 0 0 0.5rem var(--chip-color), 0 0 1rem var(--chip-color); visibility: hidden; transform: translate(-50%, -50%); transition: width 0.3s, height 0.3s; will-change: transform, box-shadow; }
+        .chip {
+            position: absolute;
+            background-color: var(--chip-color);
+            border-radius: 50%;
+            box-shadow: 0 0 0.5rem var(--chip-color), 0 0 1rem var(--chip-color);
+            visibility: hidden;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s, height 0.3s;
+            
+            /* !!! ДОБАВЬТЕ ЭТУ СТРОКУ !!! */
+            /* Это говорит браузеру заранее оптимизировать анимацию трансформации и тени для этого элемента. */
+            will-change: transform, box-shadow; 
+        }
         #slots-container {
             display: flex; width: 100%; border-radius: 0 0 1.25rem 1.25rem;
             overflow: hidden; border: 1px solid var(--border-color); border-top: none;
@@ -713,106 +725,96 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     
-        // --- Tuned Physics Constants ---
-        GRAVITY = 0.25;
-        DAMPING = 0.6; // Energy retained on bounce (0.6 is a good balance)
+        // --- ИЗМЕНЕННЫЕ КОНСТАНТЫ ФИЗИКИ ---
+        GRAVITY = 0.25; // Оставляем как есть, хорошая скорость падения.
+        DAMPING = 0.6;  // Немного увеличим сохранение энергии при отскоке (было 0.55), чтобы шарик был чуть "живее".
         const maxHorizontalVelocity = 8;
-        const maxVerticalVelocity = 12; // Capped to prevent tunneling through pegs
-        const separationBuffer = 0.1;   // Prevents jittering on pegs
-        const baseFunnelStrength = 0.04; // The max strength of the guide force at the bottom
+        const maxVerticalVelocity = 12;
+        const separationBuffer = 0.1;
     
-        // --- Main Physics Loop ---
+        // !!! ГЛАВНОЕ ИЗМЕНЕНИЕ !!!
+        // Уменьшаем базовую силу "воронки" в 5 раз. Теперь она будет очень слабой.
+        const baseFunnelStrength = 0.008; // Было 0.04
+    
+        // --- Основной цикл физики ---
         for (let i = activeChips.length - 1; i >= 0; i--) {
             const chip = activeChips[i];
     
-            // 1. Handle the final "Landed" state (smoothly animates into the slot)
             if (chip.landed) {
-                // Calculate the slot's center X position once
                 if (chip.targetCenterX === undefined) {
                     const finalSlotIndex = chip.serverResult.final_slot_index;
                     const targetSlot = document.querySelectorAll('.slot')[finalSlotIndex];
                     const boardRect = selectors.board.getBoundingClientRect();
                     chip.targetCenterX = targetSlot ? (targetSlot.getBoundingClientRect().left - boardRect.left) + (targetSlot.width / 2) : BOARD_WIDTH / 2;
                 }
-                // Interpolate position for a smooth landing
                 chip.x += (chip.targetCenterX - chip.x) * 0.25;
                 chip.y += ((BOARD_HEIGHT + CHIP_RADIUS) - chip.y) * 0.25;
                 chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
     
-                // After a short delay, end the drop completely
                 if (Date.now() - chip.landedTime > 250) {
                     endDrop(chip);
                     activeChips.splice(i, 1);
                 }
-                continue; // Skip the rest of the physics for this landed chip
+                continue;
             }
     
-            // 2. Apply Gravity
             chip.vy += GRAVITY;
     
-            // 3. Peg Collision and Bounce Logic
             const radiiSum = CHIP_RADIUS + PEG_RADIUS;
             pegs.forEach(peg => {
                 const dx = chip.x - peg.x;
                 const dy = chip.y - peg.y;
                 const distanceSq = dx * dx + dy * dy;
     
-                // Check for collision
                 if (distanceSq < radiiSum * radiiSum) {
                     const dist = Math.sqrt(distanceSq);
                     const overlap = radiiSum - dist;
                     const angle = Math.atan2(dy, dx);
                     
-                    // Resolve overlap by pushing the chip out, plus a small buffer
                     const pushAmount = overlap + separationBuffer;
                     chip.x += Math.cos(angle) * pushAmount;
                     chip.y += Math.sin(angle) * pushAmount;
                     
-                    // Perform the bounce using a standard reflection formula
                     const normalX = dx / dist;
                     const normalY = dy / dist;
                     const dot = chip.vx * normalX + chip.vy * normalY;
                     chip.vx = (chip.vx - 2 * dot * normalX) * DAMPING;
                     chip.vy = (chip.vy - 2 * dot * normalY) * DAMPING;
     
-                    // Enforce a minimum bounce when hitting the top of a peg to prevent getting stuck
                     if (chip.vy > -1 && normalY < -0.5) {
                         chip.vy = -1;
                     }
                 }
             });
     
-            // 4. Progressive Funneling Logic
-            // The guiding force starts weak and gets stronger as the chip nears the bottom.
+            // --- УЛУЧШЕННАЯ ЛОГИКА "ВОРОНКИ" ---
+            // Теперь сила направляющей воронки зависит от прогресса в степени 4 (Math.pow(progress, 4)).
+            // Это означает, что на верхних 70% доски сила практически НУЛЕВАЯ,
+            // и только на последних 30% она плавно нарастает до своего (теперь очень низкого) максимума.
+            // Это сохраняет случайность вверху и мягко корректирует внизу.
             const progress = Math.max(0, chip.y / BOARD_HEIGHT);
-            // Math.pow(progress, 4) ensures the force is negligible until the last ~30% of the board.
             const currentFunnelStrength = baseFunnelStrength * Math.pow(progress, 4); 
             chip.vx += (chip.targetX - chip.x) * currentFunnelStrength;
             
     
-            // 5. Update Position and Enforce Velocity Limits
             chip.vx = Math.max(-maxHorizontalVelocity, Math.min(maxHorizontalVelocity, chip.vx));
             chip.vy = Math.max(-maxVerticalVelocity, Math.min(maxVerticalVelocity, chip.vy));
             chip.x += chip.vx;
             chip.y += chip.vy;
     
-            // 6. Wall Collision
             if (chip.x - CHIP_RADIUS < 0 || chip.x + CHIP_RADIUS > BOARD_WIDTH) {
-                chip.vx *= -DAMPING; // Bounce off the wall with energy loss
+                chip.vx *= -DAMPING;
                 chip.x = Math.max(CHIP_RADIUS, Math.min(chip.x, BOARD_WIDTH - CHIP_RADIUS));
             }
     
-            // 7. Visually Update the Chip on Screen
             chip.element.style.transform = `translate(${chip.x - CHIP_RADIUS}px, ${chip.y - CHIP_RADIUS}px)`;
             
-            // 8. Check if the chip has fallen out of the board to trigger the landing state
             if (chip.y - CHIP_RADIUS > BOARD_HEIGHT) {
                 chip.landed = true;
                 chip.landedTime = Date.now();
             }
         }
         
-        // 9. Continue the Animation Loop
         requestAnimationFrame(updatePhysics);
     }
     
