@@ -825,6 +825,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (result.won_item) {
             tg.showAlert(`Вы выиграли: ${formatGiftName(result.won_item.name)}!`);
+            
+            // --- НОВАЯ СТРОКА: Добавляем вибрацию при крупном выигрыше ---
             if (result.won_item.value > 500) {
                  tg.HapticFeedback.notificationOccurred('success');
             }
@@ -832,9 +834,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser.balance = result.new_balance;
             updateBalanceUI();
     
-            // New: Instantly add the won gift to the inventory UI
             addGiftToInventoryUI(result.won_item);
-    
         }
     
         const targetSlot = document.querySelectorAll('.slot')[result.final_slot_index];
@@ -897,33 +897,31 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const actionButtons = itemContainer.querySelectorAll('button');
         const inventoryId = button.dataset.id;
-        // *** FIX for NaN bug: Store value before any async operations.
         const giftValue = button.dataset.value;
     
-        // *** FIX for abuse: Disable all buttons on this item.
         actionButtons.forEach(btn => btn.disabled = true);
         button.textContent = '...';
     
         try {
             const response = await apiRequest('/api/convert_gift', 'POST', { inventory_id: inventoryId });
             if (response.status === 'success') {
+                // --- НОВАЯ СТРОКА: Добавляем вибрацию успеха ---
                 tg.HapticFeedback.notificationOccurred('success');
+                
                 currentUser.balance = response.new_balance;
                 updateBalanceUI();
-                itemContainer.remove(); // Remove the entire item container
-                if (selectors.inventoryContainer.childElementCount === 1) {
+                itemContainer.remove();
+                if (selectors.inventoryContainer.childElementCount === 1) { // Assuming placeholder is 1st child
                     selectors.inventoryPlaceholder.style.display = 'block';
                     selectors.inventoryPlaceholder.textContent = 'Инвентарь пуст.';
                 }
             } else {
                 tg.showAlert(response.error || 'Не удалось конвертировать подарок.');
                 actionButtons.forEach(btn => btn.disabled = false);
-                // *** FIX for NaN bug: Restore button text using the stored variable.
                 button.innerHTML = `${Math.round(giftValue)} ${STAR_ICON_HTML}`;
             }
         } catch (e) {
             actionButtons.forEach(btn => btn.disabled = false);
-            // *** FIX for NaN bug: Restore button text using the stored variable.
             button.innerHTML = `${Math.round(giftValue)} ${STAR_ICON_HTML}`;
         }
     }
@@ -1046,8 +1044,9 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => {
             if (isDropping) return;
             
-            // Мы больше не управляем состоянием кнопок здесь напрямую.
-            // Мы просто вызываем ОДНУ функцию, которая сделает всё сама.
+            // --- НОВАЯ СТРОКА: Добавляем легкую вибрацию при смене выбора ---
+            tg.HapticFeedback.selectionChanged();
+            
             setBetModeUI(button.dataset.bet); 
         });
     });
